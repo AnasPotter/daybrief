@@ -2,6 +2,8 @@
 
 <p align="center"><a href="https://github.com/AnasPotter/daybrief/releases/latest"><b>⬇ Download Daybrief for Android</b></a></p>
 
+<p align="center"><a href="https://rookieenough.github.io/Orion-Data/app/?id=daybrief"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="60"></a></p>
+
 <table>
 <tr><td width="33%"><img src="images/1-secretary.png" alt="Your personal secretary"></td><td width="33%"><img src="images/2-swipe.png" alt="Answer with a swipe"></td><td width="33%"><img src="images/3-reminders.png" alt="Reminders from your messages"></td></tr>
 <tr><td width="33%"><img src="images/4-call-back.png" alt="Never forget to call back"></td><td width="33%"><img src="images/5-calendar.png" alt="Calendar and tasks"></td><td width="33%"><img src="images/6-edge-lighting.png" alt="Edge lighting"></td></tr>
