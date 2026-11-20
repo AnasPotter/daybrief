@@ -9,7 +9,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.anas.secretary"
+        applicationId = "app.daybrief.android"
         minSdk = 26
         targetSdk = 34
         // GitHub passes the build number, so every build is newer than the last one
@@ -24,7 +24,6 @@ android {
     productFlavors {
         create("public") {
             dimension = "who"
-            applicationId = "app.daybrief.android"
             val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 0
             versionName = "1.$buildNumber"
             buildConfigField("boolean", "PUBLIC", "true")
