@@ -1,3 +1,14 @@
+<p align="center"><img src="images/0-banner.png" alt="Daybrief: your personal secretary, on your phone"></p>
+
+<p align="center"><a href="https://github.com/AnasPotter/daybrief/releases/latest"><b>⬇ Download Daybrief for Android</b></a></p>
+
+<table>
+<tr><td width="33%"><img src="images/1-secretary.png" alt="Your personal secretary"></td><td width="33%"><img src="images/2-swipe.png" alt="Answer with a swipe"></td><td width="33%"><img src="images/3-reminders.png" alt="Reminders from your messages"></td></tr>
+<tr><td width="33%"><img src="images/4-call-back.png" alt="Never forget to call back"></td><td width="33%"><img src="images/5-calendar.png" alt="Calendar and tasks"></td><td width="33%"><img src="images/6-edge-lighting.png" alt="Edge lighting"></td></tr>
+<tr><td width="33%"><img src="images/7-things.png" alt="Things"></td><td width="33%"><img src="images/8-saved.png" alt="Saved"></td><td width="33%"><img src="images/9-widgets.png" alt="Widgets"></td></tr>
+<tr><td width="33%"><img src="images/10-your-day.png" alt="Your day"></td><td width="33%"><img src="images/11-pick.png" alt="Pick what you need"></td><td width="33%"><img src="images/12-private.png" alt="Private"></td></tr>
+</table>
+
 # Daybrief
 
 Your personal secretary, on your Android phone.
