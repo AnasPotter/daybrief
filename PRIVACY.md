@@ -20,8 +20,8 @@ Only for the parts you switch on:
 All of it stays in Daybrief's private storage on your phone. Nothing is sent to the developer or anyone else.
 
 The app only connects to the internet to:
-- show previews of links you save (it asks that website for the page title and picture),
-- check this GitHub page for a new version,
+- show previews of links you save: it asks that website (or TikTok, YouTube and Instagram's preview service for their links) for the page title and picture. If that fails, it opens the page invisibly in a web view to read them, and the page may load its own content like any website,
+- check this GitHub page for a new version (automatically, at most every 12 hours, when you open the app),
 - and save a backup where you choose (the backup is encrypted with your password).
 
 ## Removing your data

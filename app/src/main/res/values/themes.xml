@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Secretary" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFF2F2F2</item>
+    </style>
+</resources>

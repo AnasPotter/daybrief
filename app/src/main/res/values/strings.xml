@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Daybrief</string>
+    <string name="widget_desc">See and update the things you track</string>
+    <string name="w_today_desc">Today at a glance: done so far and coming up</string>
+    <string name="w_tasks_desc">Your tasks. Tick them off from the home screen</string>
+    <string name="w_thing_desc">One thing you track, shown big</string>
+    <string name="w_people_desc">People to keep in touch with</string>
+    <string name="w_saved_desc">Your latest saved links</string>
+    <string name="w_quick_desc">Add a task, reminder, note or link in one tap</string>
+    <string name="w_sleep_desc">Your sleep last night, from your watch</string>
+    <string name="w_health_desc">Steps, resting heart rate and sleep</string>
+</resources>

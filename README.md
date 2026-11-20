@@ -44,6 +44,18 @@ Needs Android 8 or newer. Made with Samsung Galaxy phones and One UI in mind, wo
 
 See [PRIVACY.md](PRIVACY.md). In short: your data never leaves your phone.
 
+## Source code
+
+Daybrief is open source under the [GNU GPL v3](LICENSE). You can read every line to see that your data stays on your phone.
+
+To build it yourself you need JDK 17, the Android SDK (API 34) and Gradle 8.7 or newer:
+
+```
+gradle assemblePublicDebug
+```
+
+The APK is then in `app/build/outputs/apk/public/debug/`. Pull requests and bug reports are welcome.
+
 ## Support
 
 Daybrief is free. If it helps you, you can [support it on Ko-fi](https://ko-fi.com/anaspotter) (PayPal, card or Google Pay).
