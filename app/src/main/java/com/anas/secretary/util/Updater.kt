@@ -66,7 +66,8 @@ object Secret {
     val isSet: Boolean get() = Prefs.tokenBlob.isNotBlank()
 }
 
-data class Release(val build: Int, val assetUrl: String, val size: Long)
+/** [label] is what people see: "Build 60" for the personal app, "Version 1.0.1" for the public one. */
+data class Release(val build: Int, val assetUrl: String, val size: Long, val label: String = "Build $build")
 
 /** Checks your GitHub repository for a newer build and installs it. */
 object Updater {
@@ -128,8 +129,12 @@ object Updater {
             }
             Prefs.lastUpdateCheck = System.currentTimeMillis()
             val a = asset ?: throw IOException("The latest build has no app file attached")
-            val r = Release(build, a.getString("url"), a.optLong("size"))
-            val newer = if (build > currentBuild(ctx)) r else null
+            // The public app is numbered like 1.0.1 / 1.1 (picked when publishing): compare the whole version
+            val pub = com.anas.secretary.BuildConfig.PUBLIC
+            val ver = json.optString("tag_name").trim().removePrefix("v")
+            val r = Release(build, a.getString("url"), a.optLong("size"), if (pub) "Version $ver" else "Build $build")
+            val isNewer = if (pub) Versions.newer(ver, com.anas.secretary.BuildConfig.VERSION_NAME) else build > currentBuild(ctx)
+            val newer = if (isNewer) r else null
             withContext(Dispatchers.Main) { available = newer }
             newer
         } finally {

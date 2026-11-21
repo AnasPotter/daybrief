@@ -20,6 +20,16 @@ class RuleEngineTest {
     }
 
     @Test
+    fun shiftHoursAreNotADate() {
+        val ascii = "Night Shift: 7-10 Yasser\n10-12 Subaie\n12-02 Sudi\n02-04 Fifi"
+        val arabic = "Night Shift: ٧-١٠:ياسر\n١٠-١٢:السبيعي\n١٢-٠٢:السودي"
+        assertEquals(null, DateExtractor.extract(ascii))
+        assertEquals(null, DateExtractor.extract(arabic))
+        assertNotEquals(null, DateExtractor.extract("Meeting on 7/10"))
+        assertNotEquals(null, DateExtractor.extract("Meeting on 7-10-2030"))
+    }
+
+    @Test
     fun englishCardPurchaseIsABankNotice() {
         val s = RuleEngine.suggest(sms, "Messages", "Bank", "Purchase of SAR 45.00 with card ending 1234 at Store. Balance SAR 900")
         assertEquals(RuleEngine.IGNORE, s?.type)

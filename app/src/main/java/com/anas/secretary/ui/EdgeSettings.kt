@@ -245,8 +245,14 @@ fun EdgePage(tick: Int, onBack: () -> Unit) {
                 }
                 val st = remember(sv, resumed) { Shizu.state(ctx) }
                 GroupBox {
+                    var popup by remember { mutableStateOf(Prefs.openPopup) }
                     ERow(
-                        "Open apps in a small window", "Optional. Open shows the app in a small window on the side, so you can reply or look around, then close it with ✕. Needs the Shizuku app (no root). Off: apps open normally.",
+                        "Open apps in a pop-up window", "Open shows the chat in a small floating window, where the phone supports it. Off: full screen.",
+                        onClick = { popup = !popup; Prefs.openPopup = popup }
+                    ) { Switch(checked = popup, onCheckedChange = { popup = it; Prefs.openPopup = it }) }
+                    GroupDivider(start = 20.dp)
+                    ERow(
+                        "Open apps in a small window", "Optional. Open shows the app in a small window on the side, so you can reply or look around, then close it with ✕. Needs the Shizuku app (no root). Without Shizuku, apps open in a pop-up window.",
                         onClick = { inPanel = !inPanel; Prefs.edgeAppInPanel = inPanel }
                     ) { Switch(checked = inPanel, onCheckedChange = { inPanel = it; Prefs.edgeAppInPanel = it }) }
                     if (inPanel) GroupDivider(start = 20.dp)

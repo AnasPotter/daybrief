@@ -186,6 +186,11 @@ object Prefs {
         get() = sp.getBoolean("edgeAppInPanel", false) // optional: needs Shizuku
         set(v) = sp.edit().putBoolean("edgeAppInPanel", v).apply()
 
+    /** Apps opened from Daybrief (Brief cards, edge panel) open in a floating pop-up window where the phone supports it. */
+    var openPopup: Boolean
+        get() = sp.getBoolean("openPopup", false)
+        set(v) = sp.edit().putBoolean("openPopup", v).apply()
+
     /** Side window for apps opened from the edge panel: 0 Small, 1 Medium, 2 Large. */
     var sideSize: Int
         get() = sp.getInt("sideSize", 1)

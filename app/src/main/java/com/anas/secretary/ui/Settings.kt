@@ -164,7 +164,7 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
             try {
                 val r = Updater.check(ctx)
                 updRelease = r
-                updStatus = if (r == null) "You have the latest version" else "Build ${r.build} is ready to install"
+                updStatus = if (r == null) "You have the latest version" else "${r.label} is ready to install"
             } catch (e: Exception) {
                 updStatus = e.message ?: "Couldn't check"
             }
@@ -389,6 +389,13 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
                             askSaved = it; Prefs.askAboutSaved = it; Repo.changed()
                         }
                     }
+                    SectionLabel("Opening apps")
+                    GroupBox {
+                        var popup by remember { mutableStateOf(Prefs.openPopup) }
+                        SwitchRow("Open apps in a pop-up window", "Chats you open from Daybrief show in a small floating window over what you're doing, where the phone supports it. Off: full screen.", popup) {
+                            popup = it; Prefs.openPopup = it
+                        }
+                    }
                     SectionLabel("Feel")
                     GroupBox {
                         var feel by remember { mutableStateOf(Prefs.haptics) }
@@ -518,7 +525,7 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
                     GroupBox {
                         val r = updRelease
                         SettingRow(
-                            if (r != null) "Install build ${r.build}" else "Check for updates",
+                            if (r != null) "Install ${r.label.replaceFirstChar { it.lowercase() }}" else "Check for updates",
                             updProgress?.let { "Downloading ${(it * 100).toInt()}%" } ?: updStatus ?: if (com.anas.secretary.BuildConfig.PUBLIC) "You're on version $ver" else "You're on build $currentBuild",
                             if (r != null) p.accent else null,
                             onClick = { if (r != null) installNow(r) else checkNow() },

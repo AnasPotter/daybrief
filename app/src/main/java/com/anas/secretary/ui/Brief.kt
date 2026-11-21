@@ -61,6 +61,7 @@ import com.anas.secretary.data.Task
 import com.anas.secretary.logic.LinkPreview
 import com.anas.secretary.logic.RuleEngine
 import com.anas.secretary.service.LiveActions
+import com.anas.secretary.edge.EdgeLight
 import com.anas.secretary.util.Cal
 import com.anas.secretary.util.Contacts
 import com.anas.secretary.util.CalEvent
@@ -132,6 +133,8 @@ class Choice(
     val primary: Boolean = false,
     val type: ChoiceType = ChoiceType.Instant,
     val dir: Int = 1,
+    /** false = never the swipe-right answer (e.g. opening the app) */
+    val swipe: Boolean = true,
     val perform: (Long?) -> Unit = {}
 )
 
@@ -148,7 +151,9 @@ class DeckContent(
     val replyKey: String?,
     val suggestions: List<String>,
     val onReplied: () -> Unit,
-    val work: Boolean = false
+    val work: Boolean = false,
+    /** Opens the conversation in its app (shown when a reply can't be sent from here) */
+    val onOpen: (() -> Unit)? = null
 )
 
 private sealed class Ask(val key: String) {
@@ -262,20 +267,22 @@ fun BriefScreen(v: Int, tick: Int, onOpenHealth: () -> Unit = {}, onOpenTab: (In
                 answered("Dismissed") { Repo.setNotifStatus(n.id, "new") }
             }
             val reply = Choice("Reply", primary = true, type = ChoiceType.Reply)
+            fun openChat() = EdgeLight.openChat(ctx, n.skey, n.pkg)
+            // The notification is gone (read on the phone, or old), so Android can't send a reply from here anymore
+            fun openAndDone() { openChat(); Repo.setNotifStatus(n.id, "dismissed"); answered("Opened ${n.app}", null) }
+            val open = Choice("Open ${n.app}", primary = n.sType == RuleEngine.REPLY, swipe = false) { openAndDone() }
             val choices = when (n.sType) {
                 RuleEngine.REMIND -> listOfNotNull(
                     Choice("Remind me", primary = !canReply) { remind(n.sDue) },
                     if (canReply) reply else null,
                     Choice("Other time", type = ChoiceType.PickTime) { remind(it) },
+                    if (!canReply) open else null,
                     no
                 )
                 RuleEngine.REPLY -> listOfNotNull(
-                    if (canReply) reply else null,
-                    Choice("In 1 hour", primary = !canReply) { remind(inOneHour()) },
+                    if (canReply) reply else open,
+                    Choice("In 1 hour") { remind(inOneHour()) },
                     Choice("Tonight") { remind(atHour(0, 20)) },
-                    if (!canReply) Choice("Open ${n.app}") {
-                        openApp(ctx, n.pkg); Repo.setNotifStatus(n.id, "dismissed"); answered("Opened ${n.app}", null)
-                    } else null,
                     no
                 )
                 RuleEngine.CALL -> listOf(
@@ -307,14 +314,15 @@ fun BriefScreen(v: Int, tick: Int, onOpenHealth: () -> Unit = {}, onOpenTab: (In
                 icon = { AppIcon(n.pkg, 30.dp) }, app = n.app, time = Fmt.short(n.time),
                 sender = who, message = if (n.sType == RuleEngine.CALL) "Missed call" else n.body.ifBlank { n.title },
                 image = null, question = question, choices = choices,
-                swipeRight = choices.indexOfFirst { it.type == ChoiceType.Instant && it.dir > 0 }.coerceAtLeast(0),
+                swipeRight = choices.indexOfFirst { it.type == ChoiceType.Instant && it.dir > 0 && it.swipe }.coerceAtLeast(0),
                 replyKey = if (canReply) n.skey else null,
                 suggestions = (LiveActions.smartReplies(n.skey) + RuleEngine.quickReplies(n.body, n.sDue != null)).distinct().take(4),
                 onReplied = {
                     Repo.setNotifStatus(n.id, "done")
                     answered("Reply sent to $who", null)
                 },
-                work = n.pkg in workApps
+                work = n.pkg in workApps,
+                onOpen = { openAndDone() }
             )
         }
         is Ask.Overdue -> {
@@ -510,7 +518,7 @@ fun BriefScreen(v: Int, tick: Int, onOpenHealth: () -> Unit = {}, onOpenTab: (In
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("A new version is ready", fontSize = 15.sp, color = p.text)
-                                Text("Build ${r.build}, install it from Settings", fontSize = 13.sp, color = p.sub)
+                                Text("${r.label}, install it from Settings", fontSize = 13.sp, color = p.sub)
                             }
                             Text("Update", color = p.accent, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
@@ -735,6 +743,7 @@ private fun FrontCard(c: DeckContent) {
     var flying by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var sendFailed by remember { mutableStateOf(false) }
 
     fun fly(dir: Int, after: () -> Unit) {
         if (flying) return
@@ -766,6 +775,7 @@ private fun FrontCard(c: DeckContent) {
             scope.launch { delay(1100); fly(1) { current.onReplied() } }
         } else {
             error = "This message can't be answered from here anymore. Open ${current.app} to reply."
+            sendFailed = true
         }
     }
 
@@ -793,7 +803,7 @@ private fun FrontCard(c: DeckContent) {
                     },
                     onDragCancel = { scope.launch { offsetX.animateTo(0f, spring()) } },
                     onHorizontalDrag = { change, amount ->
-                        if (!flying && !replying) {
+                        if (!flying && !replying && draft.isEmpty()) {
                             change.consume()
                             val before = offsetX.value
                             scope.launch { offsetX.snapTo(before + amount) }
@@ -861,18 +871,11 @@ private fun FrontCard(c: DeckContent) {
                     )
                 }
             }
-            // Answers
-            AnimatedVisibility(visible = !replying && sent == null, exit = fadeOut() + shrinkVertically()) {
-                Row(
-                    Modifier.padding(top = 14.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    c.choices.forEach { ch -> ReplyChip(ch.label, ch.primary) { choose(ch) } }
-                }
-            }
-            // Reply box
+            // Reply box: open right away while the notification still allows a reply (kept open if it goes
+            // away mid-typing, so the text isn't lost; sending then explains and offers to open the app)
+            val inline = c.replyKey != null
             AnimatedVisibility(
-                visible = replying && sent == null,
+                visible = (inline || replying || draft.isNotEmpty() || error != null) && sent == null,
                 enter = expandVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -904,7 +907,19 @@ private fun FrontCard(c: DeckContent) {
                     error?.let { Text(it, fontSize = 13.sp, color = p.danger, modifier = Modifier.padding(top = 6.dp, start = 6.dp)) }
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Sent through ${c.app}, like replying there", fontSize = 12.sp, color = p.sub, modifier = Modifier.weight(1f).padding(start = 6.dp))
-                        TextAction("Cancel", p.sub) { replying = false; error = null }
+                        if (sendFailed && c.onOpen != null) TextAction("Open ${c.app}") { c.onOpen.invoke() }
+                        else if (replying) TextAction("Cancel", p.sub) { replying = false; error = null }
+                    }
+                }
+            }
+            // Answers (Reply isn't needed as a button when the box is already open)
+            AnimatedVisibility(visible = !replying && sent == null, exit = fadeOut() + shrinkVertically()) {
+                Row(
+                    Modifier.padding(top = 14.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    c.choices.forEach { ch ->
+                        if (!(inline && ch.type == ChoiceType.Reply)) ReplyChip(ch.label, ch.primary) { choose(ch) }
                     }
                 }
             }

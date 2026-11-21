@@ -24,8 +24,10 @@ android {
     productFlavors {
         create("public") {
             dimension = "who"
+            // The version people see (1.0.1 small update, 1.1 bigger) is picked when publishing;
+            // versionCode still counts every published version (defaultConfig: 100 + buildNumber)
             val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 0
-            versionName = "1.$buildNumber"
+            versionName = (project.findProperty("publicVersion") as String?) ?: "1.$buildNumber"
             buildConfigField("boolean", "PUBLIC", "true")
             buildConfigField("String", "UPDATE_REPO", "\"AnasPotter/daybrief\"")
             buildConfigField("String", "DEFAULT_NAME", "\"\"")

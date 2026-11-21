@@ -32,7 +32,8 @@ object DateExtractor {
 
     private val reRelative = Regex("""\bin\s+(\d{1,3}|an?|one|two|three)\s+(mins?|minutes?|hrs?|hours?|days?|weeks?)\b""")
     private val reIso = Regex("""\b(\d{4})-(\d{1,2})-(\d{1,2})\b""")
-    private val reSlash = Regex("""\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b""")
+    // "7-10" without a year is a range (shift hours, "10-12"), not a date: a dash needs the year (7-10-2026)
+    private val reSlash = Regex("""\b(\d{1,2})(?:/(\d{1,2})(?:/(\d{2,4}))?|-(\d{1,2})-(\d{2,4}))\b""")
     private val reDayMonth = Regex("""\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?$MONTH\b""")
     private val reMonthDay = Regex("""\b$MONTH\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b""")
     private val reWeekday = Regex("""\b(next\s+|this\s+)?(monday|tuesday|tues|wednesday|weds|thursday|thurs|friday|saturday|sunday)\b""")
@@ -98,10 +99,10 @@ object DateExtractor {
         }
         reSlash.find(t)?.let { m ->
             val a = m.gv(1).toInt()
-            val b = m.gv(2).toInt()
+            val b = m.gv(2).ifEmpty { m.gv(4) }.toInt()
             val d = if (dayFirst) a else b
             val mo = if (dayFirst) b else a
-            val y = m.gv(3)
+            val y = m.gv(3).ifEmpty { m.gv(5) }
             val res = if (y.isEmpty()) upcoming(today, mo, d) else {
                 var yr = y.toInt(); if (yr < 100) yr += 2000
                 safe(yr, mo, d)

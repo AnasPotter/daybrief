@@ -268,7 +268,7 @@ private fun Peek(pkg: String, list: List<EdgeLight.Entry>, onExpand: (EdgeLight.
                     if (LiveActions.canReply(e.key)) Small("Reply", primary = true) { replying = !replying }
                     Small("Expand") { onExpand(e) }
                     Small("Pop-up window") { EdgeLight.openInPopup(ctx, e.key, e.pkg); onClose() }
-                    Small("Open") { if (Prefs.edgeAppInPanel) onOpen(e) else { EdgeLight.open(ctx, e.key, e.pkg); onClose() } }
+                    Small("Open") { if (Prefs.edgeAppInPanel && Shizu.state(ctx) != Shizu.State.NotInstalled) onOpen(e) else { EdgeLight.openChat(ctx, e.key, e.pkg); onClose() } }
                     Small("Clear") { EdgeLight.clear(e) }
                 }
                 AnimatedVisibility(replying, enter = fadeIn() + slideInVertically { -it / 3 }) {
@@ -361,7 +361,7 @@ private fun ColumnScope.Conversation(e: EdgeLight.Entry, onBack: () -> Unit, onO
     Row(Modifier.fillMaxWidth().padding(top = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Small("Back") { onBack() }
         Small("Pop-up window") { EdgeLight.openInPopup(ctx, e.key, e.pkg); onClose() }
-        Small("Open ${e.app}") { if (Prefs.edgeAppInPanel) onOpen(e) else { EdgeLight.open(ctx, e.key, e.pkg); onClose() } }
+        Small("Open ${e.app}") { if (Prefs.edgeAppInPanel && Shizu.state(ctx) != Shizu.State.NotInstalled) onOpen(e) else { EdgeLight.openChat(ctx, e.key, e.pkg); onClose() } }
         Small("Clear") { EdgeLight.clear(e); onBack() }
     }
 }
@@ -417,8 +417,8 @@ private fun ColumnScope.SetupInPanel(e: EdgeLight.Entry, st: Shizu.State, onClos
                 .clickable { if (st == Shizu.State.NotAllowed) Shizu.ask() else Shizu.openShizuku(ctx); onClose() }.padding(vertical = 12.dp)
         )
         Text(
-            "Not now · open full screen", fontSize = 13.sp, color = p.sub, textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().clickable { EdgeLight.open(ctx, e.key, e.pkg); onClose() }.padding(top = 12.dp)
+            "Not now · open in a pop-up window", fontSize = 13.sp, color = p.sub, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable { EdgeLight.openInPopup(ctx, e.key, e.pkg); onClose() }.padding(top = 12.dp)
         )
     }
 }

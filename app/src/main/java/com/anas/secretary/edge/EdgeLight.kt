@@ -389,6 +389,15 @@ object EdgeLight {
         } catch (_: Exception) {}
     }
 
+    /**
+     * The one way Daybrief opens a conversation (Brief cards, edge panel when the side window isn't used):
+     * a pop-up window when that's switched on, or when the Shizuku side window is on but Shizuku isn't ready;
+     * otherwise full screen. Phones without pop-up support just open it normally.
+     */
+    fun openChat(ctx: Context, key: String?, pkg: String) {
+        if (Prefs.openPopup || (Prefs.edgeAppInPanel && Shizu.state(ctx) != Shizu.State.Ready)) openInPopup(ctx, key, pkg) else open(ctx, key, pkg)
+    }
+
     /** Opens the conversation in the app, full screen. */
     fun open(ctx: Context, key: String?, pkg: String) {
         val content = LiveActions.get(key)?.content
