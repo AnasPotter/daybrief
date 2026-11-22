@@ -179,12 +179,15 @@ fun OneUiScreen(
             content()
         }
         AnimatedVisibility(visible = collapsed, enter = fadeIn(), exit = fadeOut()) {
-            Box(
-                Modifier.fillMaxWidth().background(glowTop().copy(alpha = 0.96f)).statusBarsPadding().height(56.dp)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text(page ?: title, fontSize = 20.sp, fontWeight = FontWeight.Medium, color = p.text)
+            // Solid, with a line under it, so the list never shows under the title
+            Column(Modifier.fillMaxWidth().background(glowTop())) {
+                Box(
+                    Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(page ?: title, fontSize = 20.sp, fontWeight = FontWeight.Medium, color = p.text)
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.divider))
             }
         }
     }
