@@ -144,6 +144,7 @@ object SideWindow {
             gravity = Gravity.TOP or if (left) Gravity.LEFT else Gravity.RIGHT
             x = (12 * app.resources.displayMetrics.density).toInt()
             y = if (Prefs.sideRemember && Prefs.sideTop >= 0) (Prefs.sideTop * sh).toInt() else (sh * if (land) 0.03f else 0.12f).toInt()
+            com.anas.secretary.util.Smooth.apply(app, this)
         }
         try {
             w.addView(frame, p)

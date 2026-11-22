@@ -173,7 +173,7 @@ fun LightDayCard(shortBy: Long, slept: Long, movable: List<Task>, onMove: () -> 
     var moved by remember { mutableStateOf(false) }
     val purple = androidx.compose.ui.graphics.Color(0xFFA97CFF)
     Box(
-        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card)
+        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(glassCard())
             .border(1.5.dp, purple.copy(alpha = 0.55f), RoundedCornerShape(28.dp))
     ) {
         Column(Modifier.padding(horizontal = 17.dp, vertical = 16.dp)) {
@@ -215,7 +215,7 @@ fun LightDayCard(shortBy: Long, slept: Long, movable: List<Task>, onMove: () -> 
 fun WeekTile(onClick: () -> Unit) {
     val p = LocalPalette.current
     Row(
-        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card)
+        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(glassCard())
             .clickable(onClick = onClick).padding(horizontal = 17.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

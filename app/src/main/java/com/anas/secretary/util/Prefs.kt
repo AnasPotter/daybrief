@@ -191,6 +191,21 @@ object Prefs {
         get() = sp.getBoolean("openPopup", false)
         set(v) = sp.edit().putBoolean("openPopup", v).apply()
 
+    /** Edge panel glass look: 0 off (solid), 1 light, 2 medium, 3 strong. */
+    var panelGlass: Int
+        get() = sp.getInt("panelGlass", 2)
+        set(v) = sp.edit().putInt("panelGlass", v).apply()
+
+    /** The app's glass look: 0 off (solid), 1 light, 2 medium, 3 strong. */
+    var appGlass: Int
+        get() = sp.getInt("appGlass", 2)
+        set(v) = sp.edit().putInt("appGlass", v).apply()
+
+    /** How see-through the home screen widgets are: 0 off (solid), 1 light, 2 medium, 3 strong. */
+    var widgetGlass: Int
+        get() = sp.getInt("widgetGlass", 1)
+        set(v) = sp.edit().putInt("widgetGlass", v).apply()
+
     /** Side window for apps opened from the edge panel: 0 Small, 1 Medium, 2 Large. */
     var sideSize: Int
         get() = sp.getInt("sideSize", 1)

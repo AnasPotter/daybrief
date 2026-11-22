@@ -71,6 +71,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // Frosted glass (real blur of what scrolls under bars and overlays, Android 12+; a tint below that)
+    implementation("dev.chrisbanes.haze:haze:1.3.1")
     // Image loading for link and screenshot previews
     implementation("io.coil-kt:coil-compose:2.7.0")
     // Home screen widget

@@ -1,5 +1,6 @@
 package com.anas.secretary.ui
 
+
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -201,7 +202,7 @@ fun SectionLabel(text: String) {
 @Composable
 fun GroupBox(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(LocalPalette.current.card),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(glassCard()),
         content = content
     )
 }

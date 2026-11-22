@@ -101,7 +101,7 @@ private fun SettingRow(
 
 /** A row on the main page: coloured icon, title, what's set now, and an arrow to its page. */
 @Composable
-private fun NavRow(icon: ImageVector, tint: Color, title: String, summary: String, onClick: () -> Unit) {
+internal fun NavRow(icon: ImageVector, tint: Color, title: String, summary: String, onClick: () -> Unit) {
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
@@ -259,6 +259,7 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
         "perms" -> "Permissions"
         "about" -> "About"
         "features" -> "Features"
+        "look" -> "Look"
         else -> "Settings"
     }
     var supporting by remember { mutableStateOf(false) }
@@ -326,6 +327,9 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
                             GroupDivider()
                             NavRow(Icons.Default.Create, Color(0xFF30D158), "Smart prompts",
                                 listOfNotNull("Screenshots".takeIf { shots }, "Saved links".takeIf { askSaved }).joinToString(", ").ifBlank { "Off" }) { onOpen("prompts") }
+                            GroupDivider()
+                            NavRow(Icons.Default.Home, Color(0xFF5E5CE6), "Look",
+                                "Glass ${glassLevels[Glass.level.coerceIn(0, 3)].lowercase()} · widgets ${glassLevels[Prefs.widgetGlass.coerceIn(0, 3)].lowercase()}") { onOpen("look") }
                         }
                     }
                 }
@@ -363,6 +367,25 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
             }
 
             "features" -> item(key = "features") { Column { FeaturesList() } }
+
+            "look" -> item(key = "look") {
+                Column {
+                    SectionLabel("In the app")
+                    GroupBox {
+                        SettingRow("Glass look", "Bars, cards and menus let what's behind show through, blurred. Off: solid, like before.")
+                        LevelPicker(Glass.level, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) { Glass.level = it }
+                    }
+                    SectionLabel("Home screen widgets")
+                    GroupBox {
+                        var glass by remember { mutableIntStateOf(Prefs.widgetGlass) }
+                        SettingRow("See-through widgets", "How much of your wallpaper shows through")
+                        LevelPicker(glass, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                            glass = it; Prefs.widgetGlass = it
+                            scope.launch { com.anas.secretary.widget.Widgets.refreshNow(ctx) }
+                        }
+                    }
+                }
+            }
 
             "notifs" -> item(key = "notifs") {
                 Column {

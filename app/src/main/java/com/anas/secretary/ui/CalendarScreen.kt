@@ -238,7 +238,7 @@ fun Segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     val view = LocalView.current
     val p = LocalPalette.current
     BoxWithConstraints(
-        Modifier.padding(top = 14.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(4.dp)
+        Modifier.padding(top = 14.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(glassCard()).padding(4.dp)
     ) {
         val w = maxWidth / labels.size
         val x by animateDpAsState(w * selected, spring(dampingRatio = 0.78f, stiffness = 420f), label = "seg")

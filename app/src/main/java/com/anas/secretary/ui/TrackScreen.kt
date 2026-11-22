@@ -232,7 +232,7 @@ private fun CardBox(
 ) {
     val p = LocalPalette.current
     val now = System.currentTimeMillis()
-    Column(Modifier.fillMaxWidth().padding(bottom = 11.dp).clip(RoundedCornerShape(28.dp)).background(p.card)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 11.dp).clip(RoundedCornerShape(28.dp)).background(glassCard())) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Color(c.color)),

@@ -178,5 +178,5 @@ fun WeekScreen(v: Int, onClose: () -> Unit) {
 @Composable
 private fun WCard(content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
-    Column(Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card).padding(horizontal = 17.dp, vertical = 16.dp), content = content)
+    Column(Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(glassCard()).padding(horizontal = 17.dp, vertical = 16.dp), content = content)
 }

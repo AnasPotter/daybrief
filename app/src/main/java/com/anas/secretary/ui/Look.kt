@@ -127,6 +127,11 @@ object LookIcons {
     val Saved by lazy { icon("Saved", "M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z") }
     val Plus by lazy { icon("Plus", "M12 5v14M5 12h14") }
     val Search by lazy { icon("Search", circle(11f, 11f, 6.5f), "M16 16l4.5 4.5") }
+    val Moon by lazy { icon("Moon", "M19.5 14.5A7.5 7.5 0 1 1 9.5 4.5a6 6 0 0 0 10 10z") }
+    val EyeOff by lazy { icon("EyeOff", "M3 12s3.5-6 9-6c1.6 0 3 .5 4.2 1.2M21 12s-3.5 6-9 6c-1.6 0-3-.5-4.2-1.2", "M10 10a3 3 0 0 0 4 4", "M4 4l16 16") }
+    val Window by lazy { icon("Window", rr(4f, 5f, 16f, 14f, 3f), "M4 9h16", rr(11f, 12f, 6f, 4.5f, 1.2f)) }
+    val Pause by lazy { icon("Pause", rr(4f, 5f, 16f, 14f, 3f), "M10 9.5v5M14 9.5v5") }
+    val Spark by lazy { icon("Spark", "M12 3.5l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z") }
 }
 
 // ======================= Pieces =======================
@@ -221,7 +226,7 @@ fun Tile(
 ) {
     val p = LocalPalette.current
     Box(
-        modifier.clip(RoundedCornerShape(28.dp)).background(p.card)
+        modifier.clip(RoundedCornerShape(28.dp)).background(glassCard())
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 16.dp)) {
@@ -300,7 +305,7 @@ fun LookBottomBar(selected: Int, showAdd: Boolean, visible: List<Int> = listOf(0
         verticalAlignment = Alignment.CenterVertically
     ) {
         BoxWithConstraints(
-            Modifier.weight(1f).clip(RoundedCornerShape(50)).background(bar).border(1.dp, line, RoundedCornerShape(50)).padding(5.dp)
+            Modifier.weight(1f).clip(RoundedCornerShape(50)).frosted(LocalHaze.current, bar, if (dark) Color(0xFF26262B) else Color.White).border(1.dp, line, RoundedCornerShape(50)).padding(5.dp)
         ) {
             val w = maxWidth / tabs.size
             if (selPos >= 0) {
@@ -331,7 +336,7 @@ fun LookBottomBar(selected: Int, showAdd: Boolean, visible: List<Int> = listOf(0
         if (showAdd) {
             Spacer(Modifier.width(10.dp))
             Box(
-                Modifier.size(66.dp).clip(CircleShape).background(bar).border(1.dp, line, CircleShape)
+                Modifier.size(66.dp).clip(CircleShape).frosted(LocalHaze.current, bar, if (dark) Color(0xFF26262B) else Color.White).border(1.dp, line, CircleShape)
                     .clickable { Feel.tick(view); onAdd() }.semantics { contentDescription = "Add" },
                 contentAlignment = Alignment.Center
             ) { Icon(LookIcons.Plus, null, tint = p.text, modifier = Modifier.size(26.dp)) }

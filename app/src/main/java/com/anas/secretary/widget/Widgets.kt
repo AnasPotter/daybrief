@@ -41,7 +41,11 @@ import java.io.File
 
 /** Colours shared by all widgets. Each one has a light and a dark version and follows the phone's mode. */
 object WColors {
-    val bg = ColorProvider(day = Color(0xF5FFFFFF), night = Color(0xEB1C1C1E))
+    /** The widget card; more see-through as Prefs.widgetGlass goes up. */
+    val bg: ColorProvider get() {
+        val a = when (com.anas.secretary.util.Prefs.widgetGlass) { 0 -> 1f; 1 -> 0.8f; 2 -> 0.6f; else -> 0.4f }
+        return ColorProvider(day = Color.White.copy(alpha = a * 0.97f), night = Color(0xFF1C1C1E).copy(alpha = a * 0.93f))
+    }
     val inner = ColorProvider(day = Color(0xFFF2F2F2), night = Color(0xFF2C2C2E))
     val text = ColorProvider(day = Color(0xFF111111), night = Color(0xFFF5F5F7))
     val sub = ColorProvider(day = Color(0xFF727272), night = Color(0xFF8E8E93))

@@ -1,5 +1,7 @@
 package com.anas.secretary.ui
 
+import dev.chrisbanes.haze.hazeSource
+
 import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
@@ -156,33 +158,41 @@ fun MainScreen(tick: Int, tab: MutableIntState, quick: MutableState<String?>) {
     // Each time a tab opens (and when the app comes back), its cards rise in and numbers count up once
     remember(tab.intValue, tick) { Motion.visitAt = System.currentTimeMillis(); 0 }
 
+    // Glass look: everything on the pages (glow included) is what the bars and overlays blur
+    val haze = remember { dev.chrisbanes.haze.HazeState() }
+    val glass = Glass.level
     Box(Modifier.fillMaxSize().background(p.bg)) {
-        GlowBackground()
-        CompositionLocalProvider(
-            LocalOpenSettings provides (if (tab.intValue == 4) null else ({ tab.intValue = 4 })),
-            LocalOpenSearch provides (if (tab.intValue == 4) null else ({ searching = true }))
-        ) {
-            Crossfade(targetState = tab.intValue, animationSpec = tween(220), label = "tabs") { t ->
-                when (t) {
-                    0 -> BriefScreen(v, tick, onOpenHealth = { TrackState.seg = 2; tab.intValue = 2 }, onOpenTab = { tab.intValue = it }) { tab.intValue = 4 }
-                    1 -> CalendarScreen(v, tick)
-                    2 -> TrackScreen(v, tick)
-                    3 -> SavedScreen(v)
-                    else -> SettingsScreen(v, tick)
+      CompositionLocalProvider(LocalCardAlpha provides Glass.cardAlpha(glass), LocalHaze provides haze) {
+        Box(Modifier.fillMaxSize().then(if (glass > 0) Modifier.hazeSource(haze) else Modifier)) {
+            GlowBackground()
+            CompositionLocalProvider(
+                LocalOpenSettings provides (if (tab.intValue == 4) null else ({ tab.intValue = 4 })),
+                LocalOpenSearch provides (if (tab.intValue == 4) null else ({ searching = true }))
+            ) {
+                Crossfade(targetState = tab.intValue, animationSpec = tween(220), label = "tabs") { t ->
+                    when (t) {
+                        0 -> BriefScreen(v, tick, onOpenHealth = { TrackState.seg = 2; tab.intValue = 2 }, onOpenTab = { tab.intValue = it }) { tab.intValue = 4 }
+                        1 -> CalendarScreen(v, tick)
+                        2 -> TrackScreen(v, tick)
+                        3 -> SavedScreen(v)
+                        else -> SettingsScreen(v, tick)
+                    }
                 }
             }
         }
-        // Keeps scrolled content from showing under the clock and battery icons
-        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(glowTop().copy(alpha = 0.92f)))
-        // Cards fade out behind the bottom bar instead of showing half-covered under it
-        val navH = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val fade = glowBottom()
-        Box(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(84.dp + navH)
-                .background(androidx.compose.ui.graphics.Brush.verticalGradient(
-                    0f to fade.copy(alpha = 0f), 0.45f to fade.copy(alpha = 0.85f), 1f to fade
-                ))
-        )
+        // Keeps scrolled content from showing sharp under the clock and battery icons
+        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).frosted(haze, glowTop().copy(alpha = 0.92f), glowTop()))
+        // Cards fade out behind the bottom bar instead of showing half-covered around it
+        run {
+            val navH = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val fade = glowBottom()
+            Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(84.dp + navH)
+                    .background(androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to fade.copy(alpha = 0f), 0.45f to fade.copy(alpha = 0.85f), 1f to fade
+                    ))
+            )
+        }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
             LookBottomBar(tab.intValue, showAdd = tab.intValue != 4, visible = com.anas.secretary.util.Features.tabs(), onSelect = { tab.intValue = it }) {
                 if (tab.intValue == 2) {
@@ -192,18 +202,12 @@ fun MainScreen(tick: Int, tab: MutableIntState, quick: MutableState<String?>) {
         }
         if (SetupState.show) SetupScreen(tick)
         AnimatedVisibility(WeekState.show, enter = fadeIn(tween(180)), exit = fadeOut(tween(150))) {
-            Box(Modifier.fillMaxSize().background(p.bg).pointerInput(Unit) { detectTapGestures { } }) {
-                GlowBackground()
-                WeekScreen(v) { WeekState.show = false }
-            }
+            OverlayBack(glass, haze) { WeekScreen(v) { WeekState.show = false } }
         }
         AnimatedVisibility(searching, enter = fadeIn(tween(180)), exit = fadeOut(tween(150))) {
-            // Swallows taps in the gaps so nothing underneath (like the avatar) gets them
-            Box(Modifier.fillMaxSize().background(p.bg).pointerInput(Unit) { detectTapGestures { } }) {
-                GlowBackground()
-                SearchScreen(v, onClose = { searching = false }) { tab.intValue = it }
-            }
+            OverlayBack(glass, haze) { SearchScreen(v, onClose = { searching = false }) { tab.intValue = it } }
         }
+      }
     }
 
     if (showAdd && (tab.intValue == 0 || tab.intValue == 1)) {
@@ -315,3 +319,16 @@ fun SavedDialog(initUrl: String = "", heading: String = "Save a link or note", o
     )
 }
 
+/** Full-screen overlay (search, your week): frosted glass over the page when the glass look is on, else the glow. */
+@Composable
+private fun OverlayBack(glass: Int, haze: dev.chrisbanes.haze.HazeState, content: @Composable () -> Unit) {
+    val p = LocalPalette.current
+    // Swallows taps in the gaps so nothing underneath (like the avatar) gets them
+    Box(
+        Modifier.fillMaxSize().then(if (glass > 0) Modifier.frosted(haze, p.bg, p.bg, extra = 0.2f) else Modifier.background(p.bg))
+            .pointerInput(Unit) { detectTapGestures { } }
+    ) {
+        if (glass == 0) GlowBackground()
+        content()
+    }
+}
