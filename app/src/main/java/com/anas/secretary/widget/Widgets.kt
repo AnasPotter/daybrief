@@ -12,6 +12,8 @@ import android.net.Uri
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.action.clickable
 import androidx.glance.GlanceModifier
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.updateAll
@@ -76,6 +78,39 @@ fun GlanceModifier.widgetCard(pad: Int = 14) =
     fillMaxSize().background(WColors.bg).cornerRadius(26.dp).padding(pad.dp)
 
 object Widgets {
+    /** Which part of the app a widget belongs to (null = always shown). */
+    fun featureOf(widget: String): com.anas.secretary.util.Features.F? = when (widget) {
+        "SleepWidget", "HealthTodayWidget" -> com.anas.secretary.util.Features.F.Health
+        "PeopleWidget" -> com.anas.secretary.util.Features.F.People
+        "SavedWidget" -> com.anas.secretary.util.Features.F.Saved
+        "ThingWidget", "TrackWidget" -> com.anas.secretary.util.Features.F.Things
+        else -> null
+    }
+
+    /** Shows the widget only while its part is on; otherwise a small card that opens Settings → Features. */
+    @Composable
+    fun Gated(ctx: Context, f: com.anas.secretary.util.Features.F, content: @Composable () -> Unit) {
+        if (com.anas.secretary.util.Features.on(f)) content() else FeatureOff(ctx, f)
+    }
+
+    /** An empty card for the moment between turning a part on and its data arriving. */
+    @Composable
+    fun Blank() { androidx.glance.layout.Box(GlanceModifier.widgetCard()) {} }
+
+    @Composable
+    fun FeatureOff(ctx: Context, f: com.anas.secretary.util.Features.F) {
+        androidx.glance.layout.Column(
+            GlanceModifier.widgetCard().clickable(androidx.glance.appwidget.action.actionStartActivity(
+                open(ctx, "features") { putExtra("tab", 4); putExtra("settingsPage", "features") })),
+            verticalAlignment = androidx.glance.layout.Alignment.CenterVertically
+        ) {
+            androidx.glance.text.Text("${f.label} is off", maxLines = 1,
+                style = androidx.glance.text.TextStyle(color = WColors.text, fontSize = 14.sp, fontWeight = androidx.glance.text.FontWeight.Bold))
+            androidx.glance.text.Text("Tap to turn it on in Daybrief", maxLines = 2,
+                style = androidx.glance.text.TextStyle(color = WColors.sub, fontSize = 12.sp))
+        }
+    }
+
     private var pending: Job? = null
 
     /** Redraw every widget. Called when app data changes; quick bursts are merged into one update. */

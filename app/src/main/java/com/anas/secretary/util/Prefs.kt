@@ -73,6 +73,16 @@ object Prefs {
         get() = sp.getLong("lastUpdateCheck", 0L)
         set(v) = sp.edit().putLong("lastUpdateCheck", v).apply()
 
+    /** Look for a new version on its own (about twice a day). Off for new people in the public app; App.kt keeps it on for anyone who already had it. */
+    var autoUpdateCheck: Boolean
+        get() = sp.getBoolean("autoUpdateCheck", !com.anas.secretary.BuildConfig.PUBLIC)
+        set(v) = sp.edit().putBoolean("autoUpdateCheck", v).apply()
+
+    /** A notification you clear, open or answer on the phone also leaves Brief. null = not asked yet (treated as off). */
+    var followShade: Boolean?
+        get() = if (sp.contains("followShade")) sp.getBoolean("followShade", false) else null
+        set(v) = sp.edit().apply { if (v == null) remove("followShade") else putBoolean("followShade", v) }.apply()
+
     /** Notifications from these apps count as work. */
     var workApps: Set<String>
         get() = sp.getStringSet("workApps", null) ?: setOf(
@@ -145,6 +155,30 @@ object Prefs {
     var recentSearches: List<String>
         get() = (sp.getString("recentSearches", "") ?: "").split('|').filter { it.isNotBlank() }
         set(v) = sp.edit().putString("recentSearches", v.take(6).joinToString("|") { it.replace('|', ' ') }).apply()
+
+    // ----- Quick replies -----
+    /** The user's own replies for any message; null = the built-in ones (in the message's language). */
+    var myReplies: List<String>?
+        get() = replyList("myReplies")
+        set(v) = putReplyList("myReplies", v)
+
+    /** The user's own replies for messages that mention a time; null = the built-in ones. */
+    var myTimeReplies: List<String>?
+        get() = replyList("myTimeReplies")
+        set(v) = putReplyList("myTimeReplies", v)
+
+    /** Replies WhatsApp/Messages suggest come before the user's own. */
+    var appRepliesFirst: Boolean
+        get() = sp.getBoolean("appRepliesFirst", true)
+        set(v) = sp.edit().putBoolean("appRepliesFirst", v).apply()
+
+    private fun replyList(key: String): List<String>? =
+        if (!sp.contains(key)) null else (sp.getString(key, "") ?: "").split('\n').filter { it.isNotBlank() }
+
+    private fun putReplyList(key: String, v: List<String>?) {
+        if (v == null) sp.edit().remove(key).apply()
+        else sp.edit().putString(key, v.map { it.replace('\n', ' ').trim() }.filter { it.isNotEmpty() }.take(6).joinToString("\n")).apply()
+    }
 
     // ----- Edge lighting -----
     var edgeOn: Boolean

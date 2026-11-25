@@ -159,7 +159,7 @@ object Repo {
 
     fun isDuplicate(pkg: String, title: String, body: String, since: Long): Boolean {
         db.readableDatabase.rawQuery(
-            "SELECT COUNT(*) FROM notifs WHERE pkg=? AND title=? AND body=? AND time>?",
+            "SELECT COUNT(*) FROM notifs WHERE pkg=? AND title=? AND body=? AND time>? AND status!='gone'",
             arrayOf(pkg, title, body, since.toString())
         ).use { c -> c.moveToFirst(); return c.getInt(0) > 0 }
     }
@@ -220,6 +220,16 @@ object Repo {
             w.setTransactionSuccessful()
         } finally { w.endTransaction() }
         changed()
+    }
+
+    /** The phone's notification left the shade (cleared, opened or answered there): its waiting cards leave Brief too. */
+    fun dismissByKey(skey: String, removedAt: Long, byApp: Boolean) {
+        // Only cards that came before the removal: an app can take a notification away and post a new one under the same key.
+        // Taken away by the app itself ("gone"): the same text posted again is real again, so it isn't a duplicate.
+        // Cleared or opened by the person ("shade"): the same text posted again stays handled.
+        val n = db.writableDatabase.update("notifs", ContentValues().apply { put("status", if (byApp) "gone" else "shade") },
+            "skey=? AND status='new' AND time<=?", arrayOf(skey, removedAt.toString()))
+        if (n > 0) changed()
     }
 
     fun setNotifStatus(id: Long, status: String) {

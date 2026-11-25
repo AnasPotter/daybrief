@@ -199,6 +199,11 @@ fun BriefScreen(v: Int, tick: Int, onOpenHealth: () -> Unit = {}, onOpenTab: (In
     }
     var supportDue by remember { mutableStateOf(supportCardDue(ctx)) }
     var supporting by remember { mutableStateOf(false) }
+    // Asked once: should Brief follow the notification shade? (only once notifications reach the app)
+    var shadeAsked by remember { mutableStateOf(Prefs.followShade != null) }
+    var crashAt by remember { mutableStateOf(com.anas.secretary.util.CrashLog.lastAt(ctx)) }
+    var reporting by remember { mutableStateOf(false) }
+    if (reporting) ReportSheet { sent -> reporting = false; if (sent) { com.anas.secretary.util.CrashLog.clear(ctx); crashAt = null } }
     if (supporting) SupportSheet { supporting = false }
     var lightClosed by remember { mutableStateOf(Prefs.lightDayDone == LocalDate.now().toString()) }
     var lightMoved by remember { mutableStateOf<List<Task>>(emptyList()) }
@@ -316,7 +321,11 @@ fun BriefScreen(v: Int, tick: Int, onOpenHealth: () -> Unit = {}, onOpenTab: (In
                 image = null, question = question, choices = choices,
                 swipeRight = choices.indexOfFirst { it.type == ChoiceType.Instant && it.dir > 0 && it.swipe }.coerceAtLeast(0),
                 replyKey = if (canReply) n.skey else null,
-                suggestions = (LiveActions.smartReplies(n.skey) + RuleEngine.quickReplies(n.body, n.sDue != null)).distinct().take(4),
+                suggestions = RuleEngine.replyChips(
+                    LiveActions.smartReplies(n.skey),
+                    RuleEngine.quickReplies(n.body, n.sDue != null, Prefs.myReplies, Prefs.myTimeReplies),
+                    Prefs.appRepliesFirst, 6
+                ),
                 onReplied = {
                     Repo.setNotifStatus(n.id, "done")
                     answered("Reply sent to $who", null)
@@ -501,6 +510,14 @@ fun BriefScreen(v: Int, tick: Int, onOpenHealth: () -> Unit = {}, onOpenTab: (In
                         BriefSession.filter, badges = counts, labels = true
                     ) { BriefSession.filter = it }
                 }
+            }
+            crashAt?.let { at ->
+                item(key = "crash") {
+                    CrashCard(at, onSee = { reporting = true }, onDismiss = { com.anas.secretary.util.CrashLog.clear(ctx); crashAt = null })
+                }
+            }
+            if (!shadeAsked && listenerOn && Features.messages) item(key = "followShade") {
+                FollowShadeCard { on -> Prefs.followShade = on; shadeAsked = true }
             }
             if (!sleepAnswered) sleepCardFor(health)?.let { n ->
                 item(key = "sleep") {

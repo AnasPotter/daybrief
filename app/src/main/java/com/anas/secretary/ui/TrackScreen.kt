@@ -16,6 +16,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -210,7 +211,7 @@ private fun ThingsScreen(v: Int, extra: @Composable () -> Unit) {
             if (cards.isNotEmpty()) {
                 item(key = "hint") {
                     Text(
-                        "Tap a state to update it. Tap a name for history and insights.",
+                        "Tap a tile when you do it. Hold it for history and insights.",
                         fontSize = 12.sp, color = p.sub, modifier = Modifier.padding(start = 20.dp, top = 4.dp)
                     )
                 }
@@ -231,51 +232,91 @@ private fun CardBox(
     onTap: (Tracker) -> Unit, onOpen: (Tracker) -> Unit, onEdit: () -> Unit, onAdd: () -> Unit
 ) {
     val p = LocalPalette.current
-    val now = System.currentTimeMillis()
-    Column(Modifier.fillMaxWidth().padding(bottom = 11.dp).clip(RoundedCornerShape(28.dp)).background(glassCard())) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        // The group (Home, Car…): its icon, name, add and edit, with the things as tiles under it
+        Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 0.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Color(c.color)),
+                Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(Color(c.color)),
                 contentAlignment = Alignment.Center
-            ) { Text(c.emoji, fontSize = 22.sp) }
-            Spacer(Modifier.width(12.dp))
+            ) { Text(c.emoji, fontSize = 17.sp) }
+            Spacer(Modifier.width(10.dp))
             Text(c.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = p.text, modifier = Modifier.weight(1f))
             IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Add tracker", tint = p.sub) }
             IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit card", tint = p.sub) }
         }
         if (list.isEmpty()) {
-            Text("Tap + to add something to track", fontSize = 14.sp, color = p.sub, modifier = Modifier.padding(start = 16.dp, bottom = 14.dp, top = 4.dp))
+            Box(
+                Modifier.fillMaxWidth().padding(bottom = 6.dp).clip(RoundedCornerShape(24.dp)).background(glassCard())
+                    .clickable(onClick = onAdd).padding(18.dp)
+            ) { Text("Tap + to add something to track", fontSize = 14.sp, color = p.sub) }
         }
-        list.forEachIndexed { i, t -> key(t.id) {
-            if (i > 0) GroupDivider(start = 16.dp)
-            val ins = insights[t.id]
-            val alert = ins != null && Track.needsAttention(t, ins)
-            Row(
-                Modifier.fillMaxWidth().clickable { onOpen(t) }.padding(horizontal = 16.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(t.name, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        Track.ago(t.since) + (ins?.usual?.let { " · ${if (alert) "usually " else ""}${Track.every(it)}" } ?: ""),
-                        fontSize = 12.sp, color = if (alert) p.alert else p.sub, maxLines = 1,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                    // Fills up as the usual gap since last time runs out
-                    ins?.usual?.takeIf { it > 0 }?.let { usual ->
-                        val f = ((now - t.since).toFloat() / usual).coerceIn(0f, 1f)
-                        val fill by animateFloatAsState(f, tween(700), label = "due")
-                        val color = when { f >= 1f -> TileColors.pink; f >= 0.75f -> TileColors.yellow; else -> TileColors.green }
-                        Box(Modifier.padding(top = 8.dp, end = 8.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(p.text.copy(alpha = 0.1f))) {
-                            Box(Modifier.fillMaxWidth(fill).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(color))
-                        }
-                    }
-                }
-                Spacer(Modifier.width(8.dp))
-                StateButton(t.state) { onTap(t) }
+        list.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { t -> key(t.id) { ThingTile(c, t, insights[t.id], Modifier.weight(1f).fillMaxHeight(), { onTap(t) }) { onOpen(t) } } }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
-        } }
-        Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+/** One thing: how long ago (big), a bar that fills as the usual gap runs out, one plain line. Tap = log it now, hold = details. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ThingTile(c: TCard, t: Tracker, ins: Insight?, modifier: Modifier, onTap: () -> Unit, onOpen: () -> Unit) {
+    val p = LocalPalette.current
+    val view = LocalView.current
+    val now = System.currentTimeMillis()
+    val usual = ins?.usual?.takeIf { it > 0 }
+    val f = usual?.let { ((now - t.since).toFloat() / it).coerceIn(0f, 1f) }
+    val color = when { f == null -> p.sub; f >= 1f -> TileColors.pink; f >= 0.75f -> TileColors.yellow; else -> TileColors.green }
+    // A little press-in bounce when it's logged
+    val scale = remember { Animatable(1f) }
+    // Only when it changes (logged), not every time the tile appears
+    var seen by remember { mutableStateOf(false) }
+    LaunchedEffect(t.state.name, t.since) {
+        if (!seen) { seen = true; return@LaunchedEffect }
+        scale.snapTo(0.95f); scale.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 500f))
+    }
+    val snoozed = t.snooze > now
+    Column(
+        modifier.graphicsLayer { scaleX = scale.value; scaleY = scale.value }
+            .clip(RoundedCornerShape(24.dp)).background(glassCard())
+            .combinedClickable(onClick = { Feel.confirm(view); onTap() }, onLongClick = { Feel.longPress(view); onOpen() }, onLongClickLabel = "Details")
+            .padding(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(c.emoji, fontSize = 18.sp)
+            Spacer(Modifier.weight(1f))
+            if (t.states.size > 1) StatePill(t.state.name, t.state.kind)
+            else if (usual != null) Text(Track.every(usual).removePrefix("every "), fontSize = 11.sp, color = p.sub, maxLines = 1)
+        }
+        Text(t.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.weight(1f))
+        Text(Track.ago(t.since), fontSize = 21.sp, fontWeight = FontWeight.Bold, color = p.text, maxLines = 1,
+            modifier = Modifier.padding(top = 6.dp))
+        if (f != null) {
+            val fill by animateFloatAsState(f, tween(700), label = "due")
+            Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(p.text.copy(alpha = 0.1f))) {
+                Box(Modifier.fillMaxWidth(fill).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(color))
+            }
+        }
+        val line = when {
+            snoozed -> "Snoozed"
+            usual == null -> if (t.states.size > 1) "Tap to change" else "Tap when you do it"
+            now - t.since >= usual -> "Due " + Track.ago(t.since + usual).replaceFirstChar { it.lowercase() }
+            f != null && f >= 0.75f -> "Due in ~" + Track.dur(t.since + usual - now)
+            else -> "All good"
+        }
+        // Yellow text is hard to read on a light card: a deeper amber there
+        val lineColor = when {
+            snoozed || f == null || f < 0.75f -> p.sub
+            f < 1f && !androidx.compose.foundation.isSystemInDarkTheme() -> Color(0xFF9A6A00)
+            f >= 1f -> dueText()
+            else -> color
+        }
+        Text(line, fontSize = 12.5.sp, color = lineColor, maxLines = 1,
+            modifier = Modifier.padding(top = 6.dp))
     }
 }
 

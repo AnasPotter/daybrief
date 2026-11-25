@@ -84,7 +84,7 @@ class TodayWidget : GlanceAppWidget() {
                     }
                 } catch (_: Exception) {}
             }
-            Repo.people().forEach { p ->
+            if (com.anas.secretary.util.Features.people) Repo.people().forEach { p ->
                 val b = Contacts.daysToBirthday(p.birthday) ?: return@forEach
                 if (b.first in 0..3) add(Upcoming(
                     "${p.name}'s birthday", if (b.first == 0) "Today" else if (b.first == 1) "Tomorrow" else "In ${b.first} days",
@@ -92,7 +92,7 @@ class TodayWidget : GlanceAppWidget() {
                 ))
             }
         }.sortedBy { it.at }.take(3)
-        val asks = Repo.notifs(false)
+        val asks = if (com.anas.secretary.util.Features.messages) Repo.notifs(false) else emptyList()
         val hour = LocalTime.now().hour
         val hello = when (hour) { in 5..11 -> "Good morning"; in 12..16 -> "Good afternoon"; else -> "Good evening" }
         return TodayData(
@@ -100,7 +100,7 @@ class TodayWidget : GlanceAppWidget() {
             greeting = Prefs.name.ifBlank { null }?.let { "$hello, $it" } ?: hello,
             next = next,
             replies = asks.count { it.sType == RuleEngine.REPLY },
-            calls = asks.count { it.sType == RuleEngine.CALL } + Repo.people().count { it.isDue(now) && it.snooze < now },
+            calls = asks.count { it.sType == RuleEngine.CALL } + (if (com.anas.secretary.util.Features.people) Repo.people().count { it.isDue(now) && it.snooze < now } else 0),
             overdue = tasks.count { !it.done && it.due != null && it.due < now }
         )
     }

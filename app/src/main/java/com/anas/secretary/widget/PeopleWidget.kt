@@ -55,8 +55,15 @@ class PeopleWidget : GlanceAppWidget() {
                     }
             }
         }
-        val first = load()
-        provideContent { Content(context, Widgets.live(first, load)) }
+        val feat = Widgets.featureOf("PeopleWidget")!!
+        // A part that's off loads nothing and shows a small "turn it on" card instead
+        val first = if (com.anas.secretary.util.Features.on(feat)) load() else null
+        provideContent {
+            Widgets.Gated(context, feat) {
+                val data = Widgets.live(first) { if (com.anas.secretary.util.Features.on(feat)) load() else null }
+                data?.let { Content(context, it) } ?: Widgets.Blank() // just turned on: data arrives with the next refresh
+            }
+        }
     }
 
     private fun agoShort(days: Int?): String = when {

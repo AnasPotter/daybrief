@@ -89,8 +89,15 @@ class SleepWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val load = suspend { withContext(Dispatchers.IO) { Health.cached(context) } }
-        val first = load()
-        provideContent { Content(context, Widgets.live(first, load)) }
+        val feat = Widgets.featureOf("SleepWidget")!!
+        // A part that's off loads nothing and shows a small "turn it on" card instead
+        val first = if (com.anas.secretary.util.Features.on(feat)) load() else null
+        provideContent {
+            Widgets.Gated(context, feat) {
+                val data = Widgets.live(first) { if (com.anas.secretary.util.Features.on(feat)) load() else null }
+                Content(context, data) // null here means "not connected", which Content shows itself
+            }
+        }
     }
 
     @Composable
@@ -128,8 +135,15 @@ class HealthTodayWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val load = suspend { withContext(Dispatchers.IO) { Health.cached(context) } }
-        val first = load()
-        provideContent { Content(context, Widgets.live(first, load)) }
+        val feat = Widgets.featureOf("HealthTodayWidget")!!
+        // A part that's off loads nothing and shows a small "turn it on" card instead
+        val first = if (com.anas.secretary.util.Features.on(feat)) load() else null
+        provideContent {
+            Widgets.Gated(context, feat) {
+                val data = Widgets.live(first) { if (com.anas.secretary.util.Features.on(feat)) load() else null }
+                Content(context, data) // null here means "not connected", which Content shows itself
+            }
+        }
     }
 
     @Composable

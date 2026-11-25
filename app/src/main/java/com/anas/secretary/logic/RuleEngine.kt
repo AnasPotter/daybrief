@@ -81,16 +81,28 @@ object RuleEngine {
 
     private val reArabic = Regex("[\u0600-\u06FF]")
 
-    /** Ready-made replies in the language of the message. */
-    fun quickReplies(body: String, hasTime: Boolean): List<String> {
+    val defaultReplies = listOf("Sounds good 👍", "I'll call you later", "Busy right now, will reply soon")
+    val defaultTimeReplies = listOf("Confirmed, see you then 👍", "Can we make it a bit later?", "I'll get back to you")
+
+    /**
+     * Ready-made replies. The user's own lists win when set ([own] for any message, [ownTime] when the
+     * message mentions a time); otherwise the built-in ones in the language of the message.
+     */
+    fun quickReplies(body: String, hasTime: Boolean, own: List<String>? = null, ownTime: List<String>? = null): List<String> {
+        if (hasTime && ownTime != null) return ownTime
+        if (!hasTime && own != null) return own
         val ar = reArabic.containsMatchIn(body)
         return when {
             ar && hasTime -> listOf("تمام، موعدنا 👍", "ممكن نأجلها شوي؟", "أرد عليك بعد شوي")
             ar -> listOf("تمام 👍", "أكلمك بعد شوي", "مشغول الحين، أرد عليك بعدين")
-            hasTime -> listOf("Confirmed, see you then 👍", "Can we make it a bit later?", "I'll get back to you")
-            else -> listOf("Sounds good 👍", "I'll call you later", "Busy right now, will reply soon")
+            hasTime -> defaultTimeReplies
+            else -> defaultReplies
         }
     }
+
+    /** The reply chips: the app's own suggestions and ours, in the chosen order, no repeats. */
+    fun replyChips(app: List<String>, ours: List<String>, appFirst: Boolean, max: Int): List<String> =
+        (if (appFirst) app + ours else ours + app).distinct().take(max)
 
     fun actionLabel(type: String?): String = when (type) {
         REMIND -> "Set reminder"

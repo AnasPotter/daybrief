@@ -63,12 +63,18 @@ fun granted(ctx: Context, perm: String) =
 fun photoPerm() =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
 
+/** Another part of the app (a widget) asking Settings to open one of its pages. */
+object SettingsNav { var request by mutableStateOf<String?>(null) }
+
 @Composable
 fun SettingsScreen(v: Int, tick: Int) {
-    var page by remember { mutableStateOf("main") }
-    BackHandler(enabled = page != "main") { page = "main" }
+    var page by remember { mutableStateOf(SettingsNav.request ?: "main") }
+    val req = SettingsNav.request
+    LaunchedEffect(req) { if (req != null) { page = req; SettingsNav.request = null } }
+    BackHandler(enabled = page != "main") { page = if (page == "replies") "prompts" else "main" }
     when (page) {
         "history" -> HistoryPage(v) { page = "main" }
+        "replies" -> QuickRepliesPage { page = "prompts" }
         "edge" -> EdgePage(tick) { page = "main" }
         else -> SettingsMain(tick, page) { page = it }
     }
@@ -155,6 +161,8 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
     var updProgress by remember { mutableStateOf<Float?>(null) }
     var editSource by remember { mutableStateOf(false) }
     var clearHandled by remember { mutableStateOf(Prefs.clearHandled) }
+    var followShade by remember { mutableStateOf(Prefs.followShade == true) }
+    var autoUpd by remember { mutableStateOf(Prefs.autoUpdateCheck) }
     val currentBuild = remember { Updater.currentBuild(ctx) }
 
     fun checkNow() {
@@ -264,6 +272,8 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
     }
     var supporting by remember { mutableStateOf(false) }
     if (supporting) SupportSheet { supporting = false }
+    var reportOpen by remember { mutableStateOf(false) }
+    if (reportOpen) ReportSheet { sent -> reportOpen = false; if (sent) com.anas.secretary.util.CrashLog.clear(ctx) }
     OneUiScreen(title, null) {
         if (page != "main") item(key = "back") {
             Box(Modifier.padding(bottom = 8.dp)) { TextAction("Back to settings", onClick = { onOpen("main") }) }
@@ -391,10 +401,14 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
                 Column {
                     SectionLabel("Sorting")
                     GroupBox { SettingRow("Work apps", "${workApps.size} apps count as work (Teams, Outlook…)", onClick = { pickWork = true }) }
-                    SectionLabel("When you answer here")
+                    SectionLabel("Brief and your notifications")
                     GroupBox {
                         SwitchRow("Remove handled notifications", "When you answer here, the notification also leaves your phone", clearHandled) {
                             clearHandled = it; Prefs.clearHandled = it
+                        }
+                        GroupDivider(start = 20.dp)
+                        SwitchRow("Follow your notifications", "Clear, open or answer one on the phone and it leaves Brief too", followShade) {
+                            followShade = it; Prefs.followShade = it
                         }
                     }
                     SectionLabel("History")
@@ -410,6 +424,13 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
                         GroupDivider(start = 20.dp)
                         SwitchRow("Saved links", "Ask when you want to check new links", askSaved) {
                             askSaved = it; Prefs.askAboutSaved = it; Repo.changed()
+                        }
+                    }
+                    SectionLabel("Replies")
+                    GroupBox {
+                        val mine = Prefs.myReplies != null || Prefs.myTimeReplies != null
+                        SettingRow("Quick replies", if (mine) "Your own replies" else "The built-in replies", onClick = { onOpen("replies") }) {
+                            Text("›", fontSize = 20.sp, color = p.sub)
                         }
                     }
                     SectionLabel("Opening apps")
@@ -554,6 +575,10 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
                             onClick = { if (r != null) installNow(r) else checkNow() },
                             trailing = { if (updBusy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = p.accent) }
                         )
+                        GroupDivider(start = 20.dp)
+                        SwitchRow("Look for updates on its own", "About twice a day. Updates still install only when you tap", autoUpd) {
+                            autoUpd = it; Prefs.autoUpdateCheck = it
+                        }
                         // The public app always updates from the public page; no key to set
                         if (!com.anas.secretary.BuildConfig.PUBLIC) {
                             GroupDivider(start = 20.dp)
@@ -636,8 +661,14 @@ private fun SettingsMain(tick: Int, page: String, onOpen: (String) -> Unit) {
             }
 
             else -> item(key = "about") {
-                GroupBox {
-                    SettingRow("Daybrief $ver", "Your data stays on this phone. Nothing is sent anywhere except link previews and backups you make.")
+                Column {
+                    GroupBox {
+                        SettingRow("Daybrief $ver", "Your data stays on this phone. Nothing is sent anywhere except link previews and backups you make.")
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    GroupBox {
+                        SettingRow("Report a problem", "You see the whole report before it's sent", onClick = { reportOpen = true })
+                    }
                 }
             }
         }

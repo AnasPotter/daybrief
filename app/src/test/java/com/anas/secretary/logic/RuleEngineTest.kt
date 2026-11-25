@@ -46,4 +46,29 @@ class RuleEngineTest {
         val s = RuleEngine.suggest("com.whatsapp", "WhatsApp", "Sara", "Can you bring my card please?")
         assertNotEquals(RuleEngine.IGNORE, s?.type)
     }
+
+    @Test
+    fun ownRepliesReplaceTheBuiltInOnes() {
+        val mine = listOf("On my way", "Call me")
+        assertEquals(mine, RuleEngine.quickReplies("Where are you?", false, mine, null))
+        assertEquals(mine, RuleEngine.quickReplies("وينك؟", false, mine, null))
+        // The time list is separate: not set, so the built-in time replies stay
+        assertEquals(RuleEngine.defaultTimeReplies, RuleEngine.quickReplies("Meeting at 10?", true, mine, null))
+        assertEquals(emptyList<String>(), RuleEngine.quickReplies("hi", false, emptyList(), null))
+    }
+
+    @Test
+    fun builtInRepliesFollowTheMessageLanguage() {
+        assertEquals(RuleEngine.defaultReplies, RuleEngine.quickReplies("Where are you?", false))
+        assertNotEquals(RuleEngine.defaultReplies, RuleEngine.quickReplies("وينك؟", false))
+    }
+
+    @Test
+    fun replyChipsOrderAndLimit() {
+        val app = listOf("Yes", "No")
+        val ours = listOf("No", "Later", "Call me")
+        assertEquals(listOf("Yes", "No", "Later", "Call me"), RuleEngine.replyChips(app, ours, true, 6))
+        assertEquals(listOf("No", "Later", "Call me", "Yes"), RuleEngine.replyChips(app, ours, false, 6))
+        assertEquals(listOf("Yes", "No"), RuleEngine.replyChips(app, ours, true, 2))
+    }
 }

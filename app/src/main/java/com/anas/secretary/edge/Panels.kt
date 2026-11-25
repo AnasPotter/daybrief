@@ -478,7 +478,11 @@ internal fun ReplyBar(e: EdgeLight.Entry, compact: Boolean, onSent: () -> Unit) 
     var draft by remember { mutableStateOf("") }
     var sent by remember { mutableStateOf<String?>(null) }
     val quick = remember(e.key) {
-        (LiveActions.get(e.key)?.smartReplies.orEmpty() + RuleEngine.quickReplies(e.text, false)).distinct().take(4)
+        RuleEngine.replyChips(
+            LiveActions.get(e.key)?.smartReplies.orEmpty(),
+            RuleEngine.quickReplies(e.text, false, Prefs.myReplies, Prefs.myTimeReplies),
+            Prefs.appRepliesFirst, 4
+        )
     }
     fun send(t: String) {
         val text = t.trim()

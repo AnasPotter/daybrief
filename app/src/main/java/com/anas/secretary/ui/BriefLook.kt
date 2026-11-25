@@ -47,10 +47,13 @@ fun BriefTiles(
         if (overdue.isNotEmpty()) add { m -> OverdueTile(overdue, m, onOverdue) }
         lastNight?.let { n -> add { m -> SleepTile(n, m, onSleep) } }
     }
-    tiles.chunked(2).forEach { row ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 11.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-            row.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
+    // One Column for the rows: the caller puts this in a Box, where loose rows would sit on top of each other
+    Column {
+        tiles.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 11.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                row.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }

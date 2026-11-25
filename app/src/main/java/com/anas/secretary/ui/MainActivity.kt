@@ -1,5 +1,11 @@
 package com.anas.secretary.ui
 
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.AnimatedContent
 import dev.chrisbanes.haze.hazeSource
 
 import android.Manifest
@@ -74,7 +80,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         tab.intValue = intent.getIntExtra("tab", 0)
         fromWidget(intent)
-        if ((com.anas.secretary.BuildConfig.PUBLIC || com.anas.secretary.util.Secret.isSet) &&
+        if (com.anas.secretary.util.Prefs.autoUpdateCheck &&
+            (com.anas.secretary.BuildConfig.PUBLIC || com.anas.secretary.util.Secret.isSet) &&
             System.currentTimeMillis() - com.anas.secretary.util.Prefs.lastUpdateCheck > 12 * 3_600_000L
         ) {
             com.anas.secretary.util.Bg.scope.launch {
@@ -106,6 +113,7 @@ class MainActivity : ComponentActivity() {
         if (personId >= 0 || i.getBooleanExtra("people", false)) TrackState.seg = 1
         if (i.getBooleanExtra("health", false)) TrackState.seg = 2
         if (personId >= 0) PeopleState.openRequest = personId
+        i.getStringExtra("settingsPage")?.let { SettingsNav.request = it; i.removeExtra("settingsPage") }
         i.removeExtra("quick"); i.removeExtra("personId")
     }
 
@@ -127,8 +135,32 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         resumeTick.intValue++
         GlowClock.hour = java.time.LocalTime.now().hour
+        // Glows rest while Daybrief itself is open: they'd only repeat what Brief shows, and they draw on every frame
+        com.anas.secretary.edge.EdgeLight.ownAppInFront = true
         com.anas.secretary.edge.EdgeLight.refresh()
         com.anas.secretary.service.NotifListener.refreshEdgeLighting()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        com.anas.secretary.edge.EdgeLight.ownAppInFront = false
+        com.anas.secretary.edge.EdgeLight.refresh()
+    }
+}
+
+/**
+ * The four main pages, each built the first time it's opened and then kept: switching tabs only shows another
+ * one, so nothing is rebuilt while the tab highlight moves. Only the shown page is measured and drawn.
+ */
+@Composable
+private fun KeptPages(selected: Int, page: @Composable (Int) -> Unit) {
+    val built = remember { androidx.compose.runtime.mutableStateListOf<Int>() }
+    if (selected >= 0 && selected !in built) built.add(selected)
+    androidx.compose.ui.layout.Layout(
+        content = { built.forEach { i -> androidx.compose.runtime.key(i) { Box(Modifier.layoutId(i)) { page(i) } } } }
+    ) { measurables, c ->
+        val shown = measurables.firstOrNull { it.layoutId == selected }?.measure(c)
+        layout(c.maxWidth, c.maxHeight) { shown?.place(0, 0) }
     }
 }
 
@@ -169,13 +201,19 @@ fun MainScreen(tick: Int, tab: MutableIntState, quick: MutableState<String?>) {
                 LocalOpenSettings provides (if (tab.intValue == 4) null else ({ tab.intValue = 4 })),
                 LocalOpenSearch provides (if (tab.intValue == 4) null else ({ searching = true }))
             ) {
-                Crossfade(targetState = tab.intValue, animationSpec = tween(220), label = "tabs") { t ->
-                    when (t) {
-                        0 -> BriefScreen(v, tick, onOpenHealth = { TrackState.seg = 2; tab.intValue = 2 }, onOpenTab = { tab.intValue = it }) { tab.intValue = 4 }
-                        1 -> CalendarScreen(v, tick)
-                        2 -> TrackScreen(v, tick)
-                        3 -> SavedScreen(v)
-                        else -> SettingsScreen(v, tick)
+                // Tabs switch at once (the bar's movement is the transition) and are kept once built;
+                // Settings fades in and out quickly over them
+                Box(Modifier.fillMaxSize().nestedScroll(BarFold.connection)) {
+                    KeptPages(if (tab.intValue == 4) -1 else tab.intValue) { t ->
+                        when (t) {
+                            0 -> BriefScreen(v, tick, onOpenHealth = { TrackState.seg = 2; tab.intValue = 2 }, onOpenTab = { tab.intValue = it }) { tab.intValue = 4 }
+                            1 -> CalendarScreen(v, tick)
+                            2 -> TrackScreen(v, tick)
+                            else -> SavedScreen(v)
+                        }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(tab.intValue == 4, enter = fadeIn(tween(180)), exit = fadeOut(tween(180))) {
+                        SettingsScreen(v, tick)
                     }
                 }
             }

@@ -87,8 +87,15 @@ class ThingWidget : GlanceAppWidget() {
                 }
             }
         }
-        val first = load()
-        provideContent { Content(context, Widgets.live(first, load)) }
+        val feat = Widgets.featureOf("ThingWidget")!!
+        // A part that's off loads nothing and shows a small "turn it on" card instead
+        val first = if (com.anas.secretary.util.Features.on(feat)) load() else null
+        provideContent {
+            Widgets.Gated(context, feat) {
+                val data = Widgets.live(first) { if (com.anas.secretary.util.Features.on(feat)) load() else null }
+                Content(context, data) // null = nothing to track yet, which Content shows itself
+            }
+        }
     }
 
     @Composable

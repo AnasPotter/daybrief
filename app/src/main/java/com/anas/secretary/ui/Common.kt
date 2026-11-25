@@ -138,6 +138,8 @@ fun OneUiScreen(
     extra: (@Composable () -> Unit)? = null,
     /** A main tab's name (e.g. "Track"): shows the new left header with the avatar, then [title] as a section title. */
     page: String? = null,
+    /** With [page]: false leaves out the section title (the page is one section, like Saved). */
+    section: Boolean = true,
     content: LazyListScope.() -> Unit
 ) {
     val p = LocalPalette.current
@@ -151,7 +153,7 @@ fun OneUiScreen(
             if (page != null) {
                 item(key = "header") { MainHeader(page) }
                 if (extra != null) item(key = "extra") { Box(Modifier.padding(bottom = 18.dp)) { extra() } }
-                item(key = "section") {
+                if (section) item(key = "section") {
                     Column(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 14.dp)) {
                         Text(title, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, color = p.text)
                         if (subtitle != null) Text(subtitle, fontSize = 14.sp, color = p.text.copy(alpha = 0.75f), modifier = Modifier.padding(top = 3.dp))

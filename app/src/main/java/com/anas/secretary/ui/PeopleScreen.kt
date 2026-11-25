@@ -80,7 +80,8 @@ fun PersonAvatar(p: Person, size: Dp, showRing: Boolean = true) {
     val days = p.daysSince()
     val frac = if (days == null) 1f else (days.toFloat() / p.goal).coerceIn(0f, 1f)
     val anim by animateFloatAsState(frac, tween(700), label = "ring")
-    val ringColor = if (p.isDue()) pal.danger else personColor(p.name)
+    // Pink = overdue, yellow = soon, green = fine
+    val ringColor = when { p.isDue() -> TileColors.pink; frac >= 0.75f -> TileColors.yellow; else -> TileColors.green }
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (showRing) {
             Canvas(Modifier.fillMaxSize()) {
@@ -196,6 +197,45 @@ fun PeopleScreen(v: Int, tick: Int, extra: (@Composable () -> Unit)? = null) {
             }
         } else {
             item(key = "filter") { Box(Modifier.padding(bottom = 4.dp)) { CategoryFilter(filters, PeopleState.filter, null) { PeopleState.filter = it } } }
+            // Faces of the people to reach out to soon (due, or most of the usual gap gone), most overdue first
+            val soon = shown.filter { x -> x.isDue(now) || (x.daysSince(now)?.let { it.toFloat() / x.goal >= 0.75f } ?: false) }
+                .sortedByDescending { (it.daysSince(now) ?: 9999).toFloat() / it.goal }
+            if (soon.isNotEmpty()) item(key = "reach") {
+                Column(Modifier.padding(top = 8.dp, bottom = 4.dp).rise(0).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(glassCard()).padding(vertical = 16.dp)) {
+                    Text("Reach out this week", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = p.text, modifier = Modifier.padding(start = 18.dp, bottom = 12.dp))
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp)) {
+                        soon.forEach { x ->
+                            Column(
+                                Modifier.width(76.dp).clip(RoundedCornerShape(18.dp)).clickable { openId = x.id }.padding(vertical = 6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                PersonAvatar(x, 58.dp)
+                                Text(x.name.substringBefore(' '), fontSize = 13.sp, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                                Text(x.daysSince(now)?.let { if (it == 0) "today" else "$it d" } ?: "—", fontSize = 12.sp,
+                                    color = if (x.isDue(now)) dueText() else p.sub)
+                            }
+                        }
+                    }
+                }
+            }
+            // A birthday tile only when one is close
+            shown.mapNotNull { x -> Contacts.daysToBirthday(x.birthday)?.takeIf { it.first <= 7 }?.let { x to it } }.minByOrNull { it.second.first }?.let { (x, b) ->
+                item(key = "bday") {
+                    val day = java.time.LocalDate.now().plusDays(b.first.toLong())
+                    val whenTxt = when (b.first) { 0 -> "Today"; 1 -> "Tomorrow"; else -> day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) }
+                    Row(
+                        Modifier.padding(top = 8.dp, bottom = 4.dp).rise(1).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(glassCard())
+                            .clickable { openId = x.id }.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.size(46.dp).clip(CircleShape).background(TileColors.yellow.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) { Text("🎂", fontSize = 22.sp) }
+                        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                            Text("${x.name.substringBefore(' ')}'s birthday", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(whenTxt, fontSize = 13.sp, color = p.sub, modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                }
+            }
             if (due.isNotEmpty()) {
                 item(key = "due-l") { SectionLabel("Time to reach out") }
                 item(key = "due") {

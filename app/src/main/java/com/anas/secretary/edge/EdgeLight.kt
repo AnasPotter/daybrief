@@ -228,10 +228,14 @@ object EdgeLight {
 
     private val sleepTick = Runnable { refresh() }
 
+    /** True while Daybrief's own main screen is open: glows wait (it shows the same messages). */
+    @Volatile var ownAppInFront = false
+
     /** Removes all glows (e.g. when edge lighting is turned off). */
     fun refresh() {
         if (!::app.isInitialized) return
-        val quiet = !demo && isQuiet()
+        val resting = ownAppInFront && !demo
+        val quiet = !demo && (resting || isQuiet())
         val configured = EdgeConfig.all()
         val lit: Set<String> = when {
             !canDraw(app) -> emptySet()
@@ -255,7 +259,7 @@ object EdgeLight {
             if (glows.containsKey(cfg.pkg)) glowLooks[cfg.pkg] = look
         }
         handler.removeCallbacks(poll)
-        if (quiet && lit.isEmpty() && entries.isNotEmpty() && Prefs.edgeOn && Features.edge && canDraw(app)) {
+        if (quiet && !resting && lit.isEmpty() && entries.isNotEmpty() && Prefs.edgeOn && Features.edge && canDraw(app)) {
             handler.postDelayed(poll, 3000)
         }
         // Sleep mode: look again every 5 minutes, so waiting glows come back when the sleep hours end

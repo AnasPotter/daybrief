@@ -145,10 +145,11 @@ fun SavedScreen(v: Int) {
     }
 
     OneUiScreen(
-        "Saved", subtitle,
+        "Saved", subtitle, page = "Saved", section = false,
         extra = if (list.isEmpty()) null else {
             {
                 Column {
+                    Text(subtitle, fontSize = 14.sp, color = LocalPalette.current.text.copy(alpha = 0.75f), modifier = Modifier.padding(start = 8.dp, bottom = 10.dp))
                     SizeBar(size) { size = it; Prefs.savedSize = it }
                     GroupChips(groups, list.size, current) { filter = it }
                 }
@@ -166,7 +167,7 @@ fun SavedScreen(v: Int) {
         val shown = if (current == null) groups.keys.toList() else listOf(current)
         shown.forEach { g ->
             val items = groups[g].orEmpty()
-            val limit = if (current == null) (if (size == "grid") 3 else 2) else items.size
+            val limit = if (current == null) (if (size == "grid") 4 else 2) else items.size
             val visible = items.take(limit)
             item(key = "head_$g") {
                 SectionHead(g, items.size, if (current == null && items.size > limit) items.size else 0, Modifier.animateItem()) {
@@ -175,13 +176,14 @@ fun SavedScreen(v: Int) {
             }
             val onMore: (SavedItem) -> Unit = { acting = it }
             when (size) {
-                "grid" -> visible.chunked(3).forEach { row ->
+                // Big picture tiles, two per row
+                "grid" -> visible.chunked(2).forEach { row ->
                     item(key = "grid_${row.first().id}") {
-                        Row(Modifier.animateItem().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.animateItem().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             row.forEach { s ->
                                 SavedTile(s, g, s.id in retrying, Modifier.weight(1f), { open(s) }) { onMore(s) }
                             }
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                            repeat(2 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -340,6 +342,9 @@ private fun SectionHead(group: String, count: Int, more: Int, modifier: Modifier
 private fun headline(s: SavedItem): String? =
     s.title?.takeUnless { LinkPreview.isGeneric(it) } ?: if (s.url == null) s.note.ifBlank { null } else null
 
+/** The note the person wrote, when it isn't already the headline. */
+private fun ownNote(s: SavedItem): String? = s.note.trim().ifBlank { null }?.takeIf { it != headline(s) }
+
 private fun loading(s: SavedItem) = s.url != null && headline(s) == null && s.image == null && s.id !in PreviewRetry.tried
 
 /** The picture, or a tinted box with the app's letters when there is none. */
@@ -358,12 +363,13 @@ private fun SavedThumb(s: SavedItem, group: String, busy: Boolean, modifier: Mod
 @Composable
 private fun SubLine(s: SavedItem) {
     val p = LocalPalette.current
-    Row(Modifier.padding(top = 3.dp)) {
-        Text(Fmt.short(s.created), fontSize = 12.sp, color = p.sub, maxLines = 1)
-        if (s.note.isNotBlank() && headline(s) != s.note) {
-            Text("  ·  ${s.note}", fontSize = 12.sp, color = p.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+    // The note gets its own lines: squeezed next to the date it was cut off after a few words
+    ownNote(s)?.let { n ->
+        Text(n, fontSize = 13.sp, color = p.accent, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp,
+            style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content),
+            modifier = Modifier.padding(top = 3.dp))
     }
+    Text(Fmt.short(s.created), fontSize = 12.sp, color = p.sub, maxLines = 1, modifier = Modifier.padding(top = 3.dp))
 }
 
 @Composable
@@ -409,18 +415,25 @@ private fun SavedRow(s: SavedItem, group: String, busy: Boolean, onOpen: () -> U
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SavedTile(s: SavedItem, group: String, busy: Boolean, modifier: Modifier, onOpen: () -> Unit, onMore: () -> Unit) {
-    Box(modifier.aspectRatio(0.75f).clip(RoundedCornerShape(14.dp)).combinedClickable(onClick = onOpen, onLongClick = onMore)) {
+    Box(modifier.aspectRatio(0.82f).clip(RoundedCornerShape(22.dp)).combinedClickable(onClick = onOpen, onLongClick = onMore)) {
         SavedThumb(s, group, busy, Modifier.fillMaxSize())
-        headline(s)?.let { h ->
-            Text(
-                h, fontSize = 11.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp,
-                modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
-                    .padding(start = 8.dp, end = 8.dp, top = 18.dp, bottom = 7.dp)
+        val h = headline(s)
+        val n = ownNote(s)
+        if (h != null || n != null) Column(
+            Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
+                .padding(start = 12.dp, end = 12.dp, top = 24.dp, bottom = 11.dp)
+        ) {
+            if (h != null) Text(h, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
+            // Your own note, in a light blue so it reads apart from the link's title
+            if (n != null) Text(
+                n, fontSize = 12.sp, color = Color(0xFF9CC7FF), maxLines = if (h == null) 3 else 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp,
+                style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content),
+                modifier = Modifier.padding(top = if (h != null) 3.dp else 0.dp)
             )
         }
         Box(
-            Modifier.align(Alignment.TopEnd).padding(4.dp).size(28.dp).clip(CircleShape)
+            Modifier.align(Alignment.TopEnd).padding(8.dp).size(32.dp).clip(CircleShape)
                 .background(Color.Black.copy(alpha = 0.45f)).clickable(onClick = onMore),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Default.MoreVert, "More", tint = Color.White, modifier = Modifier.size(16.dp)) }
@@ -460,6 +473,12 @@ private fun SavedActions(
                         fontWeight = FontWeight.Medium, color = p.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text("$group  ·  ${Fmt.short(s.created)}", fontSize = 12.sp, color = p.sub, modifier = Modifier.padding(top = 3.dp))
                 }
+            }
+            ownNote(s)?.let { n ->
+                Text(n, fontSize = 14.sp, color = p.text, lineHeight = 19.sp,
+                    style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content),
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 14.dp).fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp)).background(p.field).padding(12.dp))
             }
             val actions = buildList {
                 add(Triple(if (s.url != null) "Open" else "View picture", p.text, onOpen))

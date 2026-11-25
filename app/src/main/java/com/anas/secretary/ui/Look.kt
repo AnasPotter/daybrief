@@ -3,6 +3,12 @@ package com.anas.secretary.ui
 import android.content.Context
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
@@ -255,6 +261,10 @@ fun BigNumber(value: String, unit: String? = null, color: Color? = null, size: I
 }
 
 /** Colours for the coloured words and dots on the tiles (Calm, Busy, Fair…). */
+/** Overdue text: the tile pink on dark, a deeper rose on light cards so small text stays readable. */
+@Composable
+fun dueText(): Color = if (isSystemInDarkTheme()) TileColors.pink else Color(0xFFC8234F)
+
 object TileColors {
     val green = Color(0xFF5BD16B)
     val yellow = Color(0xFFFFD84D)
@@ -289,6 +299,27 @@ fun Modifier.rise(index: Int): Modifier = composed {
 
 // ======================= Bottom bar: 4 tabs + a round add button =======================
 
+/** The bar folds into a small pill while you scroll down a page, and opens again when you scroll up. */
+object BarFold {
+    var folded by mutableStateOf(false)
+    private var acc = 0f
+
+    /** A new page starts with the bar open and nothing counted yet. */
+    fun reset() { folded = false; acc = 0f }
+
+    /** Watches every page's scrolling (nested scroll), without taking any of it. */
+    val connection = object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+        override fun onPostScroll(consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+            val dy = consumed.y // < 0 = the page moved up (reading on)
+            if (dy == 0f) return Offset.Zero
+            acc = if ((dy < 0) == (acc < 0)) acc + dy else dy
+            if (acc < -60f) folded = true
+            if (acc > 36f) folded = false
+            return Offset.Zero
+        }
+    }
+}
+
 @Composable
 fun LookBottomBar(selected: Int, showAdd: Boolean, visible: List<Int> = listOf(0, 1, 2, 3), onSelect: (Int) -> Unit, onAdd: () -> Unit) {
     val view = LocalView.current
@@ -300,46 +331,194 @@ fun LookBottomBar(selected: Int, showAdd: Boolean, visible: List<Int> = listOf(0
     // Parts switched off in Features have no tab; positions follow what's left
     val tabs = visible.map { all[it] }
     val selPos = visible.indexOf(selected)
-    Row(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        BoxWithConstraints(
-            Modifier.weight(1f).clip(RoundedCornerShape(50)).frosted(LocalHaze.current, bar, if (dark) Color(0xFF26262B) else Color.White).border(1.dp, line, RoundedCornerShape(50)).padding(5.dp)
-        ) {
-            val w = maxWidth / tabs.size
-            if (selPos >= 0) {
-                val x by animateDpAsState(w * selPos, spring(dampingRatio = 0.78f, stiffness = 420f), label = "tabIndicator")
+    // A new page starts with the bar open
+    LaunchedEffect(selected) { BarFold.reset() }
+    val fold by animateFloatAsState(if (BarFold.folded && selPos >= 0) 1f else 0f, spring(dampingRatio = 0.86f, stiffness = 380f), label = "barFold")
+    BoxWithConstraints(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 12.dp)) {
+        val addFull = 66.dp
+        val addSize = lerpDp(addFull, 52.dp, fold)
+        val gap = 10.dp
+        val full = if (showAdd) maxWidth - addFull - gap else maxWidth
+        val barW = lerpDp(full, 66.dp, fold)
+        val barH = lerpDp(66.dp, 52.dp, fold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            // Not clipped: the lifted highlight stands past the bar's edges
+            Box(Modifier.width(barW).height(barH)) {
                 Box(
-                    Modifier.offset(x = x).width(w).height(56.dp).clip(RoundedCornerShape(50))
-                        .background(if (dark) Color.White.copy(alpha = 0.12f) else Color(0xFFE9E9EB))
+                    Modifier.matchParentSize().clip(RoundedCornerShape(50))
+                        .frosted(LocalHaze.current, bar, if (dark) Color(0xFF26262B) else Color.White).border(1.dp, line, RoundedCornerShape(50))
                 )
-            }
-            Row(Modifier.fillMaxWidth()) {
-                tabs.forEachIndexed { pos, (label, icon) ->
+                PillTabs(tabs.size, selPos, fold, dark, onDragTo = { pos -> onSelect(visible[pos]) }) { pos, w, tap ->
+                    val (label, icon) = tabs[pos]
                     val i = visible[pos]
                     val sel = i == selected
                     val tint by animateColorAsState(if (sel) p.text else p.sub, tween(250), label = "tabTint")
+                    val iconScale by animateFloatAsState(if (sel) 1.08f else 1f, spring(dampingRatio = 0.6f, stiffness = 400f), label = "tabIcon")
+                    // Folded: only the current tab stays, as an icon
+                    val keep = if (sel) 1f else 1f - fold
                     Column(
-                        Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(50)).clickable { if (i != selected) Feel.tick(view); onSelect(i) },
+                        Modifier.width(if (sel) lerpDp(w, barW - 10.dp, fold) else w * (1f - fold)).fillMaxHeight()
+                            .graphicsLayer { alpha = keep }
+                            .clip(RoundedCornerShape(50))
+                            .clickable(enabled = fold < 0.5f) { if (i != selected) { Feel.tick(view); tap() } },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
-                        Text(
+                        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
+                        if (fold < 0.95f) Text(
                             label, fontSize = 11.sp, color = tint, maxLines = 1,
-                            fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal, modifier = Modifier.padding(top = 2.dp)
+                            fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.padding(top = 2.dp).graphicsLayer { alpha = 1f - fold }
                         )
                     }
                 }
+                if (fold > 0.5f) Box(
+                    Modifier.matchParentSize().clip(RoundedCornerShape(50))
+                        .clickable(onClickLabel = "Show all tabs") { BarFold.folded = false }
+                        .semantics { contentDescription = (tabs.getOrNull(selPos)?.first ?: "Tabs") + ", tabs folded" }
+                )
+            }
+            if (showAdd) {
+                Spacer(Modifier.width(gap))
+                Box(
+                    Modifier.size(addSize).clip(CircleShape).frosted(LocalHaze.current, bar, if (dark) Color(0xFF26262B) else Color.White).border(1.dp, line, CircleShape)
+                        .clickable { Feel.tick(view); onAdd() }.semantics { contentDescription = "Add" },
+                    contentAlignment = Alignment.Center
+                ) { Icon(LookIcons.Plus, null, tint = p.text, modifier = Modifier.size(lerpDp(26.dp, 22.dp, fold))) }
             }
         }
-        if (showAdd) {
-            Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier.size(66.dp).clip(CircleShape).frosted(LocalHaze.current, bar, if (dark) Color(0xFF26262B) else Color.White).border(1.dp, line, CircleShape)
-                    .clickable { Feel.tick(view); onAdd() }.semantics { contentDescription = "Add" },
-                contentAlignment = Alignment.Center
-            ) { Icon(LookIcons.Plus, null, tint = p.text, modifier = Modifier.size(26.dp)) }
+    }
+}
+
+private fun lerpDp(a: Dp, b: Dp, t: Float): Dp = a + (b - a) * t
+
+/** How much taller than the bar the highlight stands while it's lifted. */
+private val PILL_GROW = 9.dp
+
+/**
+ * The tabs and their highlight, moved by [PillMotion]. A flat fill sits under the tabs at rest; while it
+ * travels it becomes a clear glass lens over them (rim and soft shadow), bigger than the bar.
+ * Drag along the bar to carry it; letting go opens the tab under it.
+ */
+@Composable
+private fun PillTabs(count: Int, selPos: Int, fold: Float, dark: Boolean, onDragTo: (Int) -> Unit, tab: @Composable (pos: Int, w: Dp, tap: () -> Unit) -> Unit) {
+    val view = LocalView.current
+    val ctx = LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val pill = remember { PillMotion(scope, maxOf(selPos, 0)) }
+    pill.reduceMotion = remember {
+        try { Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f } catch (_: Exception) { false }
+    }
+    // Travel to a tab chosen elsewhere (Search, a widget); jump straight there the first time,
+    // when coming back from Settings, or when the number of tabs changed
+    var lastSel by remember { mutableIntStateOf(-1) }
+    var lastCount by remember { mutableIntStateOf(count) }
+    LaunchedEffect(selPos, count) {
+        if (selPos >= 0) {
+            if (lastSel < 0 || count != lastCount) pill.snapTo(selPos) else pill.animateTo(selPos)
         }
+        lastSel = selPos; lastCount = count
+    }
+    val curSel by rememberUpdatedState(selPos)
+    val curDragTo by rememberUpdatedState(onDragTo)
+    val fill = if (dark) Color.White.copy(alpha = 0.13f) else Color(0xFFE6E6EA)
+    val pad = 5.dp
+    BoxWithConstraints(Modifier.fillMaxSize().padding(pad)) {
+        val w = maxWidth / count
+        val stepPx = constraints.maxWidth / count.toFloat()
+        val rowH = constraints.maxHeight.toFloat()
+        pill.stepDp = stepPx / density.density
+        val rest = Size(stepPx, rowH)
+        val liftedH = rowH + with(density) { (pad * 2 + PILL_GROW).toPx() }
+        // Grows by the same amount each way, so it stays near the bar whatever the number of tabs
+        val lifted = Size(stepPx + (liftedH - rowH), liftedH)
+        val center = { Offset(pill.position * stepPx + stepPx / 2f, rowH / 2f) }
+        val show = selPos >= 0
+        // At rest: the flat fill under the tabs (fades while the glass is on)
+        if (show) Box(
+            Modifier.matchParentSize().pillPlacement(center) { pill.liveSize(rest, lifted) }
+                .graphicsLayer { alpha = (1f - fold) * (1f - pill.material) }
+                .background(fill, RoundedCornerShape(50))
+        )
+        Row(
+            Modifier.fillMaxSize().pointerInput(count, fold > 0.5f) {
+                if (fold > 0.5f) return@pointerInput
+                var total = 0f
+                var startIdx = 0
+                var startAt = 0f
+                var holding = false
+                var lastTick = 0
+                try { detectHorizontalDragGestures(
+                    onDragStart = {
+                        holding = curSel >= 0 && size.width > 0
+                        if (!holding) return@detectHorizontalDragGestures
+                        // Picked up where it stands, even mid-way
+                        total = 0f; startIdx = pill.position.roundToInt(); lastTick = curSel
+                        startAt = pill.position
+                        pill.startDrag()
+                    },
+                    onHorizontalDrag = { ch, d ->
+                        if (!holding) return@detectHorizontalDragGestures
+                        ch.consume()
+                        val step = size.width / count.toFloat()
+                        total += d
+                        val at = (startAt + total / step).coerceIn(0f, (count - 1).toFloat())
+                        pill.dragTo(at)
+                        val near = at.roundToInt()
+                        if (near != lastTick) { lastTick = near; Feel.tick(view) }
+                    },
+                    onDragEnd = {
+                        if (!holding) return@detectHorizontalDragGestures
+                        holding = false
+                        val step = size.width / count.toFloat()
+                        val next = (startAt + total / step).coerceIn(0f, (count - 1).toFloat()).roundToInt()
+                        pill.release(next)
+                        if (next != curSel) scope.launch { withFrameNanos { }; withFrameNanos { }; curDragTo(next) }
+                    },
+                    onDragCancel = {
+                        if (holding) pill.release(maxOf(curSel, 0))
+                        holding = false
+                    }
+                ) } finally {
+                    // Stopped from outside (the bar folded, tabs changed): never leave it held
+                    if (holding) { holding = false; pill.release(maxOf(curSel, 0)) }
+                }
+            },
+            horizontalArrangement = Arrangement.Center
+        ) {
+            for (pos in 0 until count) tab(pos, w) {
+                // The highlight starts moving on the touch itself; the new page is built two frames later,
+                // so building it never holds up the first frames of the motion
+                pill.animateTo(pos)
+                scope.launch { withFrameNanos { }; withFrameNanos { }; curDragTo(pos) }
+            }
+        }
+        // While moving: a clear glass lens over the tabs, with a rim and a soft shadow that go first on landing
+        if (show && !pill.isFlat) Box(
+            Modifier.matchParentSize().pillPlacement(center) { pill.liveSize(rest, lifted) }
+                .graphicsLayer {
+                    val rim = ((pill.glass - 0.45f) / 0.55f).coerceIn(0f, 1f)
+                    alpha = 1f - fold
+                    shadowElevation = 10.dp.toPx() * pill.material * rim
+                    shape = RoundedCornerShape(50)
+                    clip = false
+                }
+                .drawBehind {
+                    val m = pill.material
+                    val rim = ((pill.glass - 0.45f) / 0.55f).coerceIn(0f, 1f)
+                    val r = size.height / 2f
+                    val cr = androidx.compose.ui.geometry.CornerRadius(r, r)
+                    drawRoundRect(Color.White.copy(alpha = (if (dark) 0.10f else 0.35f) * m), cornerRadius = cr)
+                    // Light catching the top edge, like a drop of glass
+                    drawRoundRect(
+                        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f * m), Color.Transparent), endY = size.height * 0.55f),
+                        cornerRadius = cr
+                    )
+                    drawRoundRect(
+                        Color.White.copy(alpha = 0.55f * m * rim), cornerRadius = cr,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx())
+                    )
+                }
+        )
     }
 }

@@ -23,6 +23,11 @@ class NotifListener : NotificationListenerService() {
         @Volatile private var instance: NotifListener? = null
 
         /** Removes a notification from the phone's notification shade. */
+        /** Removal reasons that mean the person dealt with it on the phone. Our own cancel, snoozes, timeouts and uninstalls don't count. */
+        fun followsShade(reason: Int): Boolean = reason in setOf(
+            REASON_CLICK, REASON_CANCEL, REASON_CANCEL_ALL, REASON_APP_CANCEL, REASON_APP_CANCEL_ALL, REASON_GROUP_SUMMARY_CANCELED
+        )
+
         fun clear(key: String?) {
             if (key == null) return
             try { instance?.cancelNotification(key) } catch (_: Exception) {}
@@ -100,6 +105,16 @@ class NotifListener : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         LiveActions.remove(sbn.key)
         EdgeLight.onRemoved(sbn.key)
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap, reason: Int) {
+        onNotificationRemoved(sbn)
+        // Handled on the phone (swiped, Clear all, opened, or answered so the app took it away): leave Brief too
+        if (com.anas.secretary.util.Prefs.followShade == true && followsShade(reason)) {
+            val key = sbn.key
+            // Right here, on the listener's thread, so a quick re-post (handled on this same thread) always comes after it
+            try { Repo.dismissByKey(key, System.currentTimeMillis(), reason == REASON_APP_CANCEL || reason == REASON_APP_CANCEL_ALL) } catch (_: Exception) {}
+        }
     }
 
     /** WhatsApp/Telegram calls aren't in the phone's call log, so we notice them from their notifications. */

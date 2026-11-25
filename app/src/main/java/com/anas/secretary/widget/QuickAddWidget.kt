@@ -48,7 +48,7 @@ class QuickAddWidget : GlanceAppWidget() {
     @Composable
     private fun Content(ctx: Context) {
         Row(GlanceModifier.widgetCard(8), verticalAlignment = Alignment.CenterVertically) {
-            buttons.forEachIndexed { i, b ->
+            buttons.filter { it.key != "paste" || com.anas.secretary.util.Features.saved }.forEachIndexed { i, b ->
                 if (i > 0) Spacer(GlanceModifier.width(6.dp))
                 Column(
                     GlanceModifier.defaultWeight().fillMaxHeight().background(WColors.inner).cornerRadius(18.dp)

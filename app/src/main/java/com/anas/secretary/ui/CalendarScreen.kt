@@ -16,6 +16,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -201,7 +207,8 @@ fun CalendarScreen(v: Int, tick: Int) {
                 CategoryFilter(listOf("All", "Personal", "Work"), CalState.filter, null) { CalState.filter = it }
             }
         }
-        AnimatedVisibility(visible = CalState.mode != 2) {
+        // Day only: Week has its own row of days
+        AnimatedVisibility(visible = CalState.mode == 0) {
             DayStrip(stripStart, stripDays, tasks, events)
         }
         Box(Modifier.weight(1f)) {
@@ -325,52 +332,56 @@ private fun Modifier.border1(c: Color) = this.border(2.dp, c, CircleShape)
 
 // ======================= Day view =======================
 
-/** Card at the top of the day: how many things, when they start and end, and a small 8:00–20:00 timeline. */
+/** Card at the top of the day: how many things, when they start and end, and a ring for how full the day is. */
 @Composable
 private fun DaySummary(day: LocalDate, slots: List<Slot>, allDay: Int) {
     val p = LocalPalette.current
     val n = slots.size + allDay
-    val ds = day.startMs()
-    fun hhmm(ms: Long) = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+    // Busy time inside 8:00–20:00, overlaps counted once
+    val from = day.startMs() + 8 * 3_600_000L
+    val to = from + 12 * 3_600_000L
+    var busy = 0L
+    var reach = from
+    slots.sortedBy { it.start }.forEach { s ->
+        val a = maxOf(s.start, reach, from); val b = minOf(s.end, to)
+        if (b > a) { busy += b - a; reach = b }
+    }
+    val frac = (busy / (12 * 3_600_000f)).coerceIn(0f, 1f)
+    val ring by animateFloatAsState(frac, tween(800, easing = FastOutSlowInEasing), label = "dayRing")
     Tile(dayLabel(day), Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp).rise(0)) {
-        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
-            BigNumber("$n", if (n == 1) "thing" else "things", size = 36)
-            Text(
-                if (slots.isEmpty()) (if (n == 0) "Nothing planned. Tap any hour to add a reminder." else "All day")
-                else slots.maxOf { it.end }.let { end ->
-                    "First at ${hhmm(slots.minOf { it.start })} · " + if (end >= day.plusDays(1).startMs()) "busy until late" else "free after ${hhmm(end)}"
-                },
-                fontSize = 12.sp, color = p.sub, modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
-            )
-        }
-        if (slots.isNotEmpty()) {
-            val from = ds + 8 * 3_600_000L
-            val span = 12 * 3_600_000f
-            BoxWithConstraints(Modifier.padding(top = 12.dp).fillMaxWidth().height(34.dp)) {
-                val w = maxWidth
-                Box(Modifier.align(Alignment.Center).fillMaxWidth().height(2.dp).background(p.text.copy(alpha = 0.12f)))
-                slots.forEach { s ->
-                    val a = ((s.start - from) / span).coerceIn(0f, 1f)
-                    val b = ((s.end - from) / span).coerceIn(0f, 1f)
-                    if (b > a) {
-                        val c = s.event?.let { opaque(it.color) } ?: (if (s.task?.work == true) WorkColor else p.accent)
-                        Box(
-                            Modifier.offset(x = w * a).width((w * (b - a)).coerceAtLeast(6.dp)).fillMaxHeight()
-                                .clip(RoundedCornerShape(9.dp)).background(c.copy(alpha = 0.45f))
-                        )
-                    }
-                }
-                val now = System.currentTimeMillis()
-                if (day == LocalDate.now() && now in from..(from + span.toLong())) {
-                    Box(Modifier.offset(x = w * ((now - from) / span) - 1.dp).width(2.dp).fillMaxHeight().background(TileColors.pink))
-                }
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                BigNumber("$n", if (n == 1) "thing" else "things", size = 36)
+                Text(
+                    if (slots.isEmpty()) (if (n == 0) "Nothing planned" else "All day")
+                    else slots.maxOf { it.end }.let { end ->
+                        "First at ${hhmm(slots.minOf { it.start })} · " + if (end >= day.plusDays(1).startMs()) "busy until late" else "free after ${hhmm(end)}"
+                    },
+                    fontSize = 12.5.sp, color = p.sub, modifier = Modifier.padding(top = 2.dp)
+                )
             }
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                listOf(8, 11, 14, 17, 20).forEach { Text("$it", fontSize = 11.sp, color = p.sub) }
+            if (slots.isNotEmpty()) Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+                val track = p.text.copy(alpha = 0.1f)
+                val c = when { frac >= 0.66f -> TileColors.pink; frac >= 0.33f -> TileColors.yellow; else -> TileColors.green }
+                Canvas(Modifier.fillMaxSize()) {
+                    val st = 7.dp.toPx()
+                    val arc = androidx.compose.ui.geometry.Size(size.width - st, size.height - st)
+                    val o = Offset(st / 2, st / 2)
+                    drawArc(track, -90f, 360f, false, o, arc, style = Stroke(st))
+                    drawArc(c, -90f, 360f * ring, false, o, arc, style = Stroke(st, cap = StrokeCap.Round))
+                }
+                val h = busy / 3_600_000.0
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (h >= 1) "%.0f h".format(Locale.US, h) else "${busy / 60_000} m", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = p.text)
+                    Text("busy", fontSize = 10.sp, color = p.sub)
+                }
             }
         }
     }
 }
+
+/** A stretch of the day with nothing in it; tap it to add a reminder there. */
+private class Gap(val start: Long, val end: Long, val evening: Boolean)
 
 @Composable
 private fun DayView(
@@ -379,23 +390,36 @@ private fun DayView(
 ) {
     val ctx = LocalContext.current
     val p = LocalPalette.current
-    val density = LocalDensity.current
-    val hourH = 60.dp
     val ds = day.startMs()
     val de = day.plusDays(1).startMs()
-    val slots = remember(day, tasks, events) { slotsFor(day, tasks, events) }
+    val slots = remember(day, tasks, events) { slotsFor(day, tasks, events).sortedBy { it.start } }
     val allDay = events.filter { it.allDay && it.begin < de && it.end > ds }
-    val scroll = rememberScrollState()
-
-    LaunchedEffect(day) {
-        val hour = if (day == LocalDate.now()) LocalTime.now().hour - 1
-        else slots.firstOrNull()?.let { ((it.start - ds) / 3_600_000L).toInt() - 1 } ?: 8
-        scroll.animateScrollTo(with(density) { (hourH * hour.coerceIn(0, 20)).roundToPx() })
+    val now = System.currentTimeMillis()
+    val isToday = day == LocalDate.now()
+    val past = day.isBefore(LocalDate.now())
+    // Free stretches of an hour or more between 8:00 and 22:00 (from now on, today; none on past days).
+    // Worked out on every draw (it's cheap), so "now" is never stale.
+    val gaps = run {
+        val out = mutableListOf<Gap>()
+        val dayStart = maxOf(ds + 8 * 3_600_000L, if (isToday) now else 0L)
+        val eveningAt = ds + 18 * 3_600_000L
+        val dayEnd = ds + 22 * 3_600_000L
+        var cursor = dayStart
+        if (!past) slots.forEach { s ->
+            if (s.start - cursor >= 3_600_000L && cursor < dayEnd) out += Gap(cursor, minOf(s.start, dayEnd), false)
+            cursor = maxOf(cursor, s.end)
+        }
+        if (!past && dayEnd - cursor >= 3_600_000L) out += Gap(cursor, dayEnd, cursor >= eveningAt)
+        out
     }
+    // Next half hour, so a reminder added in a free stretch starts on a round time
+    fun roundUp(ms: Long) = ((ms + 29 * 60_000L) / (30 * 60_000L)) * (30 * 60_000L)
 
-    Column(Modifier.fillMaxSize()) {
-        DaySummary(day, slots, allDay.size)
-        if (allDay.isNotEmpty()) {
+    // Each day starts at its top
+    val listState = remember(day) { androidx.compose.foundation.lazy.LazyListState() }
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 150.dp)) {
+        item(key = "sum") { DaySummary(day, slots, allDay.size) }
+        if (allDay.isNotEmpty()) item(key = "allday") {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -409,82 +433,117 @@ private fun DayView(
                 }
             }
         }
-        Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
-            BoxWithConstraints(
-                Modifier.fillMaxWidth().height(hourH * 24).padding(end = 12.dp)
-                    .pointerInput(day) {
-                        detectTapGestures { off ->
-                            val h = (off.y / hourH.toPx()).toInt().coerceIn(0, 23)
-                            onNew(ds + h * 3_600_000L)
-                        }
-                    }
-            ) {
-                val gutter = 56.dp
-                val area = maxWidth - gutter
-                for (h in 0..23) {
-                    Row(Modifier.offset(y = hourH * h - 7.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "%02d:00".format(Locale.US, h), fontSize = 11.sp, color = p.sub.copy(alpha = 0.7f),
-                            textAlign = TextAlign.End, modifier = Modifier.width(46.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Box(Modifier.weight(1f).height(1.dp).background(p.divider))
-                    }
+        // The day as cards in time order, with the free stretches and the now line between them
+        val rows = (slots.map { it.start to (it as Any) } + gaps.map { it.start to (it as Any) })
+            .sortedWith(compareBy({ it.first }, { if (it.second is Gap) 1 else 0 }))
+        var nowShown = !isToday
+        rows.forEachIndexed { i, (at, r) ->
+            // The now line goes before the first thing still ahead (a free stretch that starts now counts as ahead)
+            if (!nowShown && at >= now - 2 * 60_000L) {
+                nowShown = true
+                item(key = "now") { NowLine(now) }
+            }
+            when (r) {
+                is Slot -> item(key = "s$i-${r.task?.id ?: ""}e${r.event?.eventId ?: ""}${r.start}") {
+                    Box(Modifier.rise((i + 1).coerceAtMost(6))) { SlotCard(r, onTask) }
                 }
-                slots.forEachIndexed { i, s ->
-                    val top = hourH * ((s.start - ds) / 3_600_000f)
-                    val height = (hourH * ((s.end - s.start) / 3_600_000f)).coerceAtLeast(30.dp) - 3.dp
-                    val w = area / s.lanes
-                    val appear = remember(day, s.start, s.task?.id, s.event?.eventId) { Animatable(0f) }
-                    LaunchedEffect(day, s.start) { delay(35L * i); appear.animateTo(1f, tween(280)) }
-                    Box(
-                        Modifier.offset(x = gutter + w * s.lane, y = top + 1.dp).width(w - 4.dp).height(height)
-                            .graphicsLayer { alpha = appear.value; translationY = (1f - appear.value) * 14f }
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (s.task != null) p.pill else opaque(s.event!!.color).copy(alpha = 0.22f)
-                            )
-                            .clickable { if (s.task != null) onTask(s.task) else s.event?.let { Cal.open(ctx, it) } }
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
-                    ) {
-                        val t = s.task
-                        val e = s.event
-                        if (t != null) {
-                            Row(verticalAlignment = Alignment.Top) {
-                                MiniCheck(t.done) { Repo.setDone(t.id, !t.done) }
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    t.title, fontSize = 13.sp, color = p.pillText, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                    textDecoration = if (t.done) TextDecoration.LineThrough else null, modifier = Modifier.weight(1f)
-                                )
-                                Text(hhmm(s.start), fontSize = 12.sp, color = p.pillText.copy(alpha = 0.8f), modifier = Modifier.padding(start = 4.dp))
-                            }
-                        } else if (e != null) {
-                            Row(Modifier.fillMaxHeight()) {
-                                Box(Modifier.width(4.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(opaque(e.color)))
-                                Spacer(Modifier.width(8.dp))
-                                Column {
-                                    Text(e.title, fontSize = 13.sp, color = p.text, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text("${hhmm(e.begin)} \u2013 ${hhmm(e.end)}", fontSize = 12.sp, color = p.sub, maxLines = 1)
-                                }
-                            }
-                        }
-                    }
-                }
-                if (day == LocalDate.now()) {
-                    val nowMin = LocalTime.now().let { it.hour * 60 + it.minute }
-                    Row(
-                        Modifier.offset(x = gutter - 4.dp, y = hourH * (nowMin / 60f) - 4.dp).width(area + 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFF453A)))
-                        Box(Modifier.weight(1f).height(2.dp).background(Color(0xFFFF453A)))
+                is Gap -> item(key = "g${r.start}") {
+                    Box(Modifier.rise((i + 1).coerceAtMost(6))) {
+                        FreeRow(
+                            when {
+                                r.evening && r.start - now > 2 * 60_000L -> "Free for the evening"
+                                isToday && r.start - now <= 2 * 60_000L -> "Free until ${hhmm(r.end)}"
+                                else -> "Free · ${hhmm(r.start)}–${hhmm(r.end)}"
+                            },
+                            hhmm(roundUp(r.start))
+                        ) { onNew(roundUp(r.start)) }
                     }
                 }
             }
-            Spacer(Modifier.height(130.dp))
+        }
+        if (!nowShown) item(key = "now") { NowLine(now) }
+        // Any other time (early, late, between back-to-back things): pick it in the reminder itself
+        if (!past) item(key = "add") {
+            val at = if (isToday) roundUp(now + 60 * 60_000L) else ds + 9 * 3_600_000L
+            FreeRow(if (rows.isEmpty()) "Nothing planned" else "Add at another time", hhmm(at)) { onNew(at) }
         }
     }
+}
+
+@Composable
+private fun NowLine(now: Long) {
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 16.dp, top = 2.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(hhmm(now), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFF453A), modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFF453A)))
+        Box(Modifier.weight(1f).height(2.dp).background(Color(0xFFFF453A)))
+    }
+}
+
+/** One reminder or event: time on the left, a card coloured by its kind. */
+@Composable
+private fun SlotCard(s: Slot, onTask: (Task) -> Unit) {
+    val ctx = LocalContext.current
+    val p = LocalPalette.current
+    val t = s.task
+    val e = s.event
+    val color = e?.let { opaque(it.color) } ?: if (t?.work == true) WorkColor else p.accent
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.Top) {
+        Text(hhmm(s.start), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = p.text, modifier = Modifier.width(48.dp).padding(top = 14.dp), textAlign = TextAlign.End)
+        Spacer(Modifier.width(10.dp))
+        Row(
+            Modifier.weight(1f).height(IntrinsicSize.Min).clip(RoundedCornerShape(20.dp)).background(glassCard())
+                .clickable { if (t != null) onTask(t) else e?.let { Cal.open(ctx, it) } },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.width(5.dp).fillMaxHeight().background(color))
+            Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp, top = 11.dp, bottom = 11.dp)) {
+                Text(
+                    t?.title ?: e?.title.orEmpty(), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.text,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (t?.done == true) TextDecoration.LineThrough else null,
+                    style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content)
+                )
+                val mins = (s.end - s.start) / 60_000
+                val sub = when {
+                    t != null -> (if (t.work) "Work · " else "") + "Reminder" + (taskFrom(t)?.let { " · from $it" } ?: "")
+                    e != null -> (if (mins >= 60) "${mins / 60} h" + (if (mins % 60 > 0) " ${mins % 60} m" else "") else "$mins min") +
+                        " · ${hhmm(e.begin)}–${hhmm(e.end)}"
+                    else -> ""
+                }
+                Text(sub, fontSize = 12.5.sp, color = p.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
+            if (t != null) Box(Modifier.padding(end = 14.dp)) { MiniCheck(t.done) { Repo.setDone(t.id, !t.done) } }
+        }
+    }
+}
+
+@Composable
+private fun FreeRow(label: String, addAt: String, onAdd: () -> Unit) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.width(58.dp))
+        Row(
+            Modifier.weight(1f).clip(RoundedCornerShape(20.dp))
+                .border(1.dp, p.text.copy(alpha = 0.14f), RoundedCornerShape(20.dp))
+                .clickable(onClickLabel = "Add a reminder at $addAt", onClick = onAdd)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 13.5.sp, color = p.sub, modifier = Modifier.weight(1f))
+            Icon(Icons.Default.Add, "Add a reminder at $addAt", tint = p.accent, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/** Where a reminder came from, in a word (an app's name for one made from a notification). */
+private fun taskFrom(t: Task): String? = when (t.source) {
+    "notification" -> t.notes.substringBefore(':', "").trim().take(24).ifBlank { null }
+    "saved" -> "Saved"
+    "screenshot" -> "a screenshot"
+    "person" -> "People"
+    "tracker" -> "Things"
+    else -> null
 }
 
 // ======================= Week view =======================

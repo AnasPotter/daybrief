@@ -10,6 +10,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         Prefs.init(this)
+        com.anas.secretary.util.CrashLog.install(this)
         // Every screen of the app asks for the phone's fastest refresh rate (120 Hz where it has it)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) = com.anas.secretary.util.Smooth.apply(a)
@@ -27,6 +28,9 @@ class App : Application() {
         // "Open apps inside the panel" is off for new people. Keep it on for anyone already using it with Shizuku.
         if (!Prefs.has("edgeAppInPanel")) Prefs.edgeAppInPanel =
             try { com.anas.secretary.edge.Shizu.state(this) != com.anas.secretary.edge.Shizu.State.NotInstalled } catch (_: Exception) { false }
+        // Looking for updates on its own became a choice: keep it on for anyone whose app already did it
+        // (decided once: a later manual check must not switch it on)
+        if (!Prefs.has("autoUpdateCheck")) Prefs.autoUpdateCheck = Prefs.lastUpdateCheck > 0 || !BuildConfig.PUBLIC
         com.anas.secretary.util.Track.scheduleNudges(this)
         com.anas.secretary.util.Daily.scheduleCheck(this)
         com.anas.secretary.util.Bg.scope.launch { try { com.anas.secretary.util.Daily.planTonight(this@App) } catch (_: Exception) {} }
